@@ -1,0 +1,19 @@
+[tools]
+go = "1.25.6"
+"go:golang.org/x/tools/gopls" = "0.21.0"
+
+[tasks.init]
+description = "Initialize"
+depends = ["init:go:module"]
+
+[tasks."init:go:module"]
+description = "Initialize go modules"
+run = "go mod download"
+
+[tasks.lint]
+description = "Lint go code"
+run = "go tool lint ./..."
+
+[tasks."lint:fix"]
+description = "Fix lint error"
+run = "go tool lint -fix ./..."
