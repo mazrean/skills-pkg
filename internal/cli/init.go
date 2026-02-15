@@ -9,6 +9,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/mazrean/skills-pkg/internal/adapter"
 	"github.com/mazrean/skills-pkg/internal/domain"
+	"github.com/mazrean/skills-pkg/internal/port"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 // InitCmd represents the init command
 // Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 12.1, 12.2, 12.3, 12.4
 type InitCmd struct {
-	Agent      string   `help:"Agent name (e.g., 'claude') to use default directory" short:"a"`
+	Agent      string   `help:"Agent name (e.g., 'claude', 'codex', 'cursor', 'copilot', 'goose', 'opencode', 'gemini', 'amp', 'factory') to use default directory" short:"a"`
 	InstallDir []string `help:"Custom install directory (can be specified multiple times)" short:"d"`
 }
 
@@ -108,11 +109,16 @@ func (c *InitCmd) buildInstallTargets(logger *Logger) ([]string, error) {
 		logger.Verbose("Resolving agent directory for: %s", c.Agent)
 
 		// Use AgentProvider to resolve agent directory (requirements 10.3, 10.4)
-		agentProvider := adapter.NewClaudeAgentAdapter()
+		agentProvider, err := c.getAgentProvider(c.Agent)
+		if err != nil {
+			// Report unsupported agent error with cause and recommended action (requirements 12.2, 12.3)
+			return nil, fmt.Errorf("failed to get agent provider: %w. Supported agents: claude, codex, cursor, copilot, goose, opencode, gemini, amp, factory", err)
+		}
+
 		agentDir, err := agentProvider.ResolveAgentDir(c.Agent)
 		if err != nil {
 			// Report unsupported agent error with cause and recommended action (requirements 12.2, 12.3)
-			return nil, fmt.Errorf("failed to resolve agent directory: %w. Supported agents: claude", err)
+			return nil, fmt.Errorf("failed to resolve agent directory: %w", err)
 		}
 
 		logger.Verbose("Resolved agent directory: %s", agentDir)
@@ -120,4 +126,31 @@ func (c *InitCmd) buildInstallTargets(logger *Logger) ([]string, error) {
 	}
 
 	return installTargets, nil
+}
+
+// getAgentProvider returns the appropriate AgentProvider based on the agent name.
+// Supports all major coding agents: claude, codex, cursor, copilot, goose, opencode, gemini, amp, factory.
+func (c *InitCmd) getAgentProvider(agentName string) (port.AgentProvider, error) {
+	switch agentName {
+	case "claude":
+		return adapter.NewClaudeAgentAdapter(), nil
+	case "codex":
+		return adapter.NewCodexAgentAdapter(), nil
+	case "cursor":
+		return adapter.NewCursorAgentAdapter(), nil
+	case "copilot":
+		return adapter.NewCopilotAgentAdapter(), nil
+	case "goose":
+		return adapter.NewGooseAgentAdapter(), nil
+	case "opencode":
+		return adapter.NewOpenCodeAgentAdapter(), nil
+	case "gemini":
+		return adapter.NewGeminiAgentAdapter(), nil
+	case "amp":
+		return adapter.NewAmpAgentAdapter(), nil
+	case "factory":
+		return adapter.NewFactoryAgentAdapter(), nil
+	default:
+		return nil, fmt.Errorf("unsupported agent: %s", agentName)
+	}
 }

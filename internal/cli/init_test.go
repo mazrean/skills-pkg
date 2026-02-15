@@ -148,6 +148,36 @@ func TestInitCmd_Run(t *testing.T) {
 			},
 		},
 		{
+			name:        "success: initialize with codex agent flag",
+			installDirs: nil,
+			agent:       "codex",
+			setupFunc: func(t *testing.T) (string, func()) {
+				t.Helper()
+				tmpDir := t.TempDir()
+				configPath := filepath.Join(tmpDir, ".skillspkg.toml")
+				return configPath, func() {}
+			},
+			wantErr: false,
+			checkFunc: func(t *testing.T, configPath string) {
+				t.Helper()
+				cm := domain.NewConfigManager(configPath)
+				config, err := cm.Load(context.Background())
+				if err != nil {
+					t.Fatalf("failed to load created config: %v", err)
+				}
+
+				if len(config.InstallTargets) != 1 {
+					t.Errorf("expected 1 install target, got %d", len(config.InstallTargets))
+				}
+
+				// Should contain the codex agent directory
+				// The exact path will be resolved by CodexAgentAdapter
+				if len(config.InstallTargets) > 0 && config.InstallTargets[0] == "" {
+					t.Error("install target should not be empty")
+				}
+			},
+		},
+		{
 			name:        "error: config file already exists",
 			installDirs: nil,
 			agent:       "",
