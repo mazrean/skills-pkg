@@ -105,28 +105,44 @@ func (m *ConfigManager) Save(ctx context.Context, config *Config) error {
 	return nil
 }
 
-// AddSkill adds a new skill entry to the configuration.
+// AddSkillToConfig adds a new skill entry to the configuration in memory.
+// It returns the updated Config without saving to file.
+// This is useful when you want to add a skill and perform additional operations
+// (like installation) before saving the configuration.
 // It returns ErrSkillExists if a skill with the same name already exists.
 // Requirements: 2.2, 2.3, 2.4, 5.2, 12.2, 12.3
-func (m *ConfigManager) AddSkill(ctx context.Context, skill *Skill) error {
+func (m *ConfigManager) AddSkillToConfig(ctx context.Context, skill *Skill) (*Config, error) {
 	// Validate the skill before adding
 	if err := skill.Validate(); err != nil {
-		return fmt.Errorf("skill validation failed: %w", err)
+		return nil, fmt.Errorf("skill validation failed: %w", err)
 	}
 
 	// Load the current config
 	config, err := m.Load(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	// Check for duplicate skill names (requirement 2.2)
 	if config.HasSkill(skill.Name) {
-		return fmt.Errorf("%w: skill '%s' already exists in configuration", ErrSkillExists, skill.Name)
+		return nil, fmt.Errorf("%w: skill '%s' already exists in configuration", ErrSkillExists, skill.Name)
 	}
 
 	// Add the skill to the config
 	config.Skills = append(config.Skills, skill)
+
+	return config, nil
+}
+
+// AddSkill adds a new skill entry to the configuration.
+// It returns ErrSkillExists if a skill with the same name already exists.
+// Requirements: 2.2, 2.3, 2.4, 5.2, 12.2, 12.3
+func (m *ConfigManager) AddSkill(ctx context.Context, skill *Skill) error {
+	// Add skill to config (without saving)
+	config, err := m.AddSkillToConfig(ctx, skill)
+	if err != nil {
+		return err
+	}
 
 	// Save the updated config
 	if err := m.Save(ctx, config); err != nil {

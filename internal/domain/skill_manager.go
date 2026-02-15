@@ -23,6 +23,12 @@ type SkillManager interface {
 	// Install installs the specified skill. If skillName is empty, installs all skills.
 	Install(ctx context.Context, skillName string) error
 
+	// InstallSingleSkill installs a single skill that has been added to the config.
+	// It downloads the skill, calculates the hash, and updates the config.
+	// If saveConfig is true, it also saves the configuration file.
+	// This is useful when you want to add a skill to the config and install it in one operation.
+	InstallSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) error
+
 	// Update updates the specified skill. If skillName is empty, updates all skills.
 	Update(ctx context.Context, skillName string) (*UpdateResult, error)
 
@@ -114,7 +120,7 @@ func (s *skillManagerImpl) Install(ctx context.Context, skillName string) error 
 	eg, egCtx := errgroup.WithContext(ctx)
 	for _, skill := range skillsToInstall {
 		eg.Go(func() error {
-			return s.installSingleSkill(egCtx, config, skill, false)
+			return s.InstallSingleSkill(egCtx, config, skill, false)
 		})
 	}
 
@@ -255,10 +261,11 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
-// installSingleSkill installs a single skill.
+// InstallSingleSkill installs a single skill.
 // If saveConfig is true, saves the configuration after updating skill metadata.
+// This method is public to allow external callers (like add command) to install a single skill.
 // Requirements: 3.3, 3.4, 4.3, 4.4, 5.3, 6.2, 6.4, 6.5, 6.6, 10.2, 10.5, 12.1, 12.2, 12.3
-func (s *skillManagerImpl) installSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) error {
+func (s *skillManagerImpl) InstallSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) error {
 	// Progress information (Requirement 12.1)
 	fmt.Printf("Installing skill '%s' from %s...\n", skill.Name, skill.Source)
 
