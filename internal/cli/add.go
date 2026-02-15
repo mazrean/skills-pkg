@@ -12,11 +12,11 @@ import (
 
 // AddCmd represents the add command
 type AddCmd struct {
-	Name           string `arg:"" help:"Skill name"`
-	Source         string `required:"" help:"Source type (git, npm, go-module)"`
-	URL            string `required:"" help:"Source URL (Git URL, npm package name, or Go module path)"`
-	Version        string `default:"latest" help:"Version (tag, commit hash, or semantic version)"`
-	PackageManager string `help:"Package manager (npm, go-module) if applicable"`
+	Name    string `arg:"" help:"Skill name"`
+	Source  string `default:"git" help:"Source type (git, npm, go-module)"`
+	URL     string `required:"" help:"Source URL (Git URL, npm package name, or Go module path)"`
+	Version string `default:"latest" help:"Version (tag, commit hash, or semantic version)"`
+	SubDir  string `help:"Subdirectory within the source to extract (default: skills/{name})"`
 }
 
 // Run executes the add command
@@ -61,15 +61,22 @@ func (c *AddCmd) run(configPath string, verbose bool) error {
 	// Create ConfigManager
 	configManager := domain.NewConfigManager(configPath)
 
+	// Determine SubDir (default: skills/{name})
+	subDir := c.SubDir
+	if subDir == "" {
+		subDir = fmt.Sprintf("skills/%s", c.Name)
+		logger.Verbose("Using default subdirectory: %s", subDir)
+	}
+
 	// Create skill entry
 	skill := &domain.Skill{
-		Name:           c.Name,
-		Source:         c.Source,
-		URL:            c.URL,
-		Version:        c.Version,
-		HashAlgo:       "", // Hash will be set during installation
-		HashValue:      "", // Hash will be set during installation
-		PackageManager: c.PackageManager,
+		Name:      c.Name,
+		Source:    c.Source,
+		URL:       c.URL,
+		Version:   c.Version,
+		HashAlgo:  "", // Hash will be set during installation
+		HashValue: "", // Hash will be set during installation
+		SubDir:    subDir,
 	}
 
 	logger.Verbose("Created skill entry: %+v", skill)

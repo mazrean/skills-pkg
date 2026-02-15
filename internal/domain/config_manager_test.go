@@ -227,8 +227,8 @@ package_manager = "npm"
 				if skill2.Name != "npm-skill" {
 					t.Errorf("expected skill name 'npm-skill', got '%s'", skill2.Name)
 				}
-				if skill2.PackageManager != "npm" {
-					t.Errorf("expected package manager 'npm', got '%s'", skill2.PackageManager)
+				if skill2.Source != "npm" {
+					t.Errorf("expected source 'npm', got '%s'", skill2.Source)
 				}
 			},
 		},
@@ -479,7 +479,7 @@ func TestConfigManager_AddSkill(t *testing.T) {
 			},
 		},
 		{
-			name: "successfully adds npm skill with package manager",
+			name: "successfully adds npm skill with source",
 			setupConfig: &domain.Config{
 				InstallTargets: []string{"~/.claude/skills"},
 				Skills:         []*domain.Skill{},
@@ -491,7 +491,6 @@ func TestConfigManager_AddSkill(t *testing.T) {
 				Version:        "1.0.0",
 				HashAlgo:       "sha256",
 				HashValue:      "def456",
-				PackageManager: "npm",
 			},
 			wantErr: nil,
 			validate: func(t *testing.T, config *domain.Config) {
@@ -499,8 +498,8 @@ func TestConfigManager_AddSkill(t *testing.T) {
 					t.Fatalf("expected 1 skill, got %d", len(config.Skills))
 				}
 				skill := config.Skills[0]
-				if skill.PackageManager != "npm" {
-					t.Errorf("expected package manager 'npm', got '%s'", skill.PackageManager)
+				if skill.Source != "npm" {
+					t.Errorf("expected source 'npm', got '%s'", skill.Source)
 				}
 			},
 		},
@@ -950,7 +949,6 @@ func TestConfigManager_ListSkills(t *testing.T) {
 						Version:        "2.0.0",
 						HashAlgo:       "sha256",
 						HashValue:      "def456",
-						PackageManager: "npm",
 					},
 				},
 			},
@@ -965,8 +963,8 @@ func TestConfigManager_ListSkills(t *testing.T) {
 				if skills[1].Name != "skill-2" {
 					t.Errorf("expected second skill name 'skill-2', got '%s'", skills[1].Name)
 				}
-				if skills[1].PackageManager != "npm" {
-					t.Errorf("expected package manager 'npm', got '%s'", skills[1].PackageManager)
+				if skills[1].Source != "npm" {
+					t.Errorf("expected source 'npm', got '%s'", skills[1].Source)
 				}
 			},
 		},

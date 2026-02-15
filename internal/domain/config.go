@@ -14,13 +14,13 @@ type Config struct {
 // It contains all metadata required for skill installation and verification.
 // Requirements: 2.2, 2.3, 2.4, 5.2, 11.4
 type Skill struct {
-	Name           string `toml:"name"`
-	Source         string `toml:"source"`                    // "git", "npm", "go-module"
-	URL            string `toml:"url"`                       // Git URL, npm package name, Go module path
-	Version        string `toml:"version"`                   // Tag, commit hash, or semantic version
-	HashAlgo       string `toml:"hash_algo"`                 // "sha256"
-	HashValue      string `toml:"hash_value"`                // Hex-encoded hash
-	PackageManager string `toml:"package_manager,omitempty"` // "npm", "go-module" (optional for git)
+	Name      string `toml:"name"`
+	Source    string `toml:"source"`           // "git", "npm", "go-module"
+	URL       string `toml:"url"`              // Git URL, npm package name, Go module path
+	Version   string `toml:"version"`          // Tag, commit hash, or semantic version
+	HashAlgo  string `toml:"hash_algo"`        // "sha256"
+	HashValue string `toml:"hash_value"`       // Hex-encoded hash
+	SubDir    string `toml:"subdir,omitempty"` // Subdirectory within the downloaded source (e.g., "skills/my-agent")
 }
 
 // Validate validates the skill configuration.

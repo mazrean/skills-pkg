@@ -66,8 +66,7 @@ func TestConfigManagerTOMLIntegration(t *testing.T) {
 			Version:        "v1.0.0",
 			HashAlgo:       "sha256",
 			HashValue:      "a1b2c3d4e5f6",
-			PackageManager: "",
-		}
+					}
 
 		err = configManager.AddSkill(ctx, skill)
 		if err != nil {
@@ -186,8 +185,7 @@ func TestSkillOperationIntegration(t *testing.T) {
 				Version:        "v1.0.0",
 				HashAlgo:       "sha256",
 				HashValue:      "hash1",
-				PackageManager: "",
-			},
+							},
 			{
 				Name:           "npm-skill",
 				Source:         "npm",
@@ -195,8 +193,7 @@ func TestSkillOperationIntegration(t *testing.T) {
 				Version:        "1.0.0",
 				HashAlgo:       "sha256",
 				HashValue:      "hash2",
-				PackageManager: "npm",
-			},
+				},
 		}
 
 		for _, skill := range skills {
@@ -223,8 +220,7 @@ func TestSkillOperationIntegration(t *testing.T) {
 			Version:        "v2.0.0",
 			HashAlgo:       "sha256",
 			HashValue:      "new-hash1",
-			PackageManager: "",
-		}
+					}
 
 		err = configManager.UpdateSkill(ctx, updatedSkill)
 		if err != nil {

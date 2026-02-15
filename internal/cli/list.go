@@ -74,15 +74,11 @@ func (c *ListCmd) runWithLogger(configPath string, logger *Logger) error {
 	// Display skills in a table format (requirements 8.2, 8.3)
 	logger.Info("")
 	logger.Info("Installed Skills:")
-	logger.Info("%-20s %-15s %-30s %-20s", "NAME", "SOURCE", "VERSION", "PACKAGE MANAGER")
+	logger.Info("%-20s %-15s %-30s", "NAME", "SOURCE", "VERSION")
 	logger.Info("%s", "--------------------------------------------------------------------------------")
 
 	for _, skill := range skills {
-		packageManager := skill.PackageManager
-		if packageManager == "" {
-			packageManager = "-"
-		}
-		logger.Info("%-20s %-15s %-30s %-20s", skill.Name, skill.Source, skill.Version, packageManager)
+		logger.Info("%-20s %-15s %-30s", skill.Name, skill.Source, skill.Version)
 	}
 
 	logger.Info("")
