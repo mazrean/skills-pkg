@@ -9,53 +9,90 @@ import (
 )
 
 func TestGooseAgentAdapter_ResolveAgentDir(t *testing.T) {
-	provider := adapter.NewGooseAgentAdapter()
+	tests := []struct {
+		name            string
+		agentName       string
+		wantErr         bool
+		checkAbsolute   bool
+		checkSuffix     string
+		checkHomePrefix bool
+	}{
+		{
+			name:            "goose agent",
+			agentName:       "goose",
+			wantErr:         false,
+			checkAbsolute:   true,
+			checkSuffix:     filepath.Join(".config", "goose", "skills"),
+			checkHomePrefix: true,
+		},
+		{
+			name:      "unsupported agent",
+			agentName: "unsupported",
+			wantErr:   true,
+		},
+		{
+			name:      "empty agent name",
+			agentName: "",
+			wantErr:   true,
+		},
+	}
 
-	t.Run("goose_agent", func(t *testing.T) {
-		dir, err := provider.ResolveAgentDir("goose")
-		if err != nil {
-			t.Fatalf("ResolveAgentDir(goose) error = %v, want nil", err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := adapter.NewGooseAgentAdapter()
 
-		if !filepath.IsAbs(dir) {
-			t.Errorf("ResolveAgentDir(goose) = %q, want absolute path", dir)
-		}
+			dir, err := provider.ResolveAgentDir(tt.agentName)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ResolveAgentDir(%q) error = %v, wantErr %v", tt.agentName, err, tt.wantErr)
+			}
 
-		expectedSuffix := filepath.Join(".config", "goose", "skills")
-		if !hasPathSuffix(dir, expectedSuffix) {
-			t.Errorf("ResolveAgentDir(goose) = %q, want path ending with %q", dir, expectedSuffix)
-		}
+			if err != nil {
+				// Error message should not be empty for errors
+				if err.Error() == "" {
+					t.Error("ResolveAgentDir error message is empty")
+				}
+				return
+			}
 
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("os.UserHomeDir() error = %v", err)
-		}
-		expected := filepath.Join(home, ".config", "goose", "skills")
-		if dir != expected {
-			t.Errorf("ResolveAgentDir(goose) = %q, want %q", dir, expected)
-		}
-	})
+			if tt.checkAbsolute && !filepath.IsAbs(dir) {
+				t.Errorf("ResolveAgentDir(%q) = %q, want absolute path", tt.agentName, dir)
+			}
 
-	t.Run("unsupported_agent", func(t *testing.T) {
-		_, err := provider.ResolveAgentDir("unsupported")
-		if err == nil {
-			t.Error("ResolveAgentDir(unsupported) error = nil, want error")
-		}
-	})
+			if tt.checkSuffix != "" && !hasPathSuffix(dir, tt.checkSuffix) {
+				t.Errorf("ResolveAgentDir(%q) = %q, want path ending with %q", tt.agentName, dir, tt.checkSuffix)
+			}
 
-	t.Run("empty_agent_name", func(t *testing.T) {
-		_, err := provider.ResolveAgentDir("")
-		if err == nil {
-			t.Error("ResolveAgentDir(\"\") error = nil, want error")
-		}
-	})
+			if tt.checkHomePrefix {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					t.Fatalf("os.UserHomeDir() error = %v", err)
+				}
+				expected := filepath.Join(home, ".config", "goose", "skills")
+				if dir != expected {
+					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
+				}
+			}
+		})
+	}
 }
 
 func TestGooseAgentAdapter_AgentName(t *testing.T) {
-	provider := adapter.NewGooseAgentAdapter()
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should return goose",
+			want: "goose",
+		},
+	}
 
-	name := provider.AgentName()
-	if name != "goose" {
-		t.Errorf("AgentName() = %q, want \"goose\"", name)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := adapter.NewGooseAgentAdapter()
+			if got := provider.AgentName(); got != tt.want {
+				t.Errorf("AgentName() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

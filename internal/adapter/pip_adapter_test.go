@@ -9,9 +9,23 @@ import (
 )
 
 func TestPipAdapter_SourceType(t *testing.T) {
-	adapter := adapter.NewPipAdapter()
-	if got := adapter.SourceType(); got != "pip" {
-		t.Errorf("SourceType() = %v, want %v", got, "pip")
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should return pip",
+			want: "pip",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := adapter.NewPipAdapter()
+			if got := a.SourceType(); got != tt.want {
+				t.Errorf("SourceType() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

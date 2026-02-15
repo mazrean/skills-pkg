@@ -11,9 +11,23 @@ import (
 )
 
 func TestNpmAdapter_SourceType(t *testing.T) {
-	adapter := NewNpmAdapter()
-	if got := adapter.SourceType(); got != "npm" {
-		t.Errorf("SourceType() = %v, want %v", got, "npm")
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should return npm",
+			want: "npm",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := NewNpmAdapter()
+			if got := adapter.SourceType(); got != tt.want {
+				t.Errorf("SourceType() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -66,98 +80,112 @@ func TestNpmAdapter_Download_InvalidSource(t *testing.T) {
 	}
 }
 
-func TestNpmAdapter_Download_PackageNotFound(t *testing.T) {
-	adapter := NewNpmAdapter()
-	ctx := context.Background()
-
-	source := &port.Source{
-		Type: "npm",
-		URL:  "this-package-absolutely-does-not-exist-12345",
+func TestNpmAdapter_Download_PackageErrors(t *testing.T) {
+	tests := []struct {
+		name             string
+		url              string
+		version          string
+		skipInShort      bool
+		wantErr          bool
+		checkNetworkErr  bool
+		checkPath        bool
+		checkVersion     string
+		checkPackageJSON bool
+		checkVersionType func(t *testing.T, version string)
+	}{
+		{
+			name:            "package not found",
+			url:             "this-package-absolutely-does-not-exist-12345",
+			version:         "1.0.0",
+			wantErr:         true,
+			checkNetworkErr: true,
+		},
+		{
+			name:             "valid package with specific version",
+			url:              "lodash",
+			version:          "4.17.21",
+			skipInShort:      true,
+			wantErr:          false,
+			checkPath:        true,
+			checkVersion:     "4.17.21",
+			checkPackageJSON: true,
+		},
+		{
+			name:        "valid package with latest version",
+			url:         "lodash",
+			version:     "latest",
+			skipInShort: true,
+			wantErr:     false,
+			checkPath:   true,
+			checkVersionType: func(t *testing.T, version string) {
+				if version == "" || version == "latest" {
+					t.Errorf("Download() result.Version should be resolved, got %v", version)
+				}
+			},
+		},
 	}
 
-	_, err := adapter.Download(ctx, source, "1.0.0")
-	if err == nil {
-		t.Error("Download() expected error for non-existent package, got nil")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipInShort && testing.Short() {
+				t.Skip("skipping integration test in short mode")
+			}
 
-	// Should be a network failure error
-	if !domain.IsNetworkError(err) {
-		t.Errorf("Download() error should be a network error, got %v", err)
-	}
-}
+			adapter := NewNpmAdapter()
+			ctx := context.Background()
 
-func TestNpmAdapter_Download_ValidPackage(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
+			source := &port.Source{
+				Type: "npm",
+				URL:  tt.url,
+			}
 
-	adapter := NewNpmAdapter()
-	ctx := context.Background()
+			result, err := adapter.Download(ctx, source, tt.version)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Download() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 
-	source := &port.Source{
-		Type: "npm",
-		URL:  "lodash",
-	}
+			if tt.checkNetworkErr && err != nil {
+				if !domain.IsNetworkError(err) {
+					t.Errorf("Download() error should be a network error, got %v", err)
+				}
+				return
+			}
 
-	result, err := adapter.Download(ctx, source, "4.17.21")
-	if err != nil {
-		t.Fatalf("Download() unexpected error: %v", err)
-	}
+			if err != nil {
+				return
+			}
 
-	// Clean up
-	defer func() {
-		_ = os.RemoveAll(result.Path)
-	}()
+			// Clean up
+			defer func() {
+				_ = os.RemoveAll(result.Path)
+			}()
 
-	// Verify download result
-	if result.Path == "" {
-		t.Error("Download() result.Path is empty")
-	}
-	if result.Version != "4.17.21" {
-		t.Errorf("Download() result.Version = %v, want %v", result.Version, "4.17.21")
-	}
+			if tt.checkPath && result.Path == "" {
+				t.Error("Download() result.Path is empty")
+			}
 
-	// Verify directory exists
-	if _, err := os.Stat(result.Path); os.IsNotExist(err) {
-		t.Errorf("Download() directory does not exist: %s", result.Path)
-	}
+			if tt.checkVersion != "" && result.Version != tt.checkVersion {
+				t.Errorf("Download() result.Version = %v, want %v", result.Version, tt.checkVersion)
+			}
 
-	// Verify package.json exists
-	packageJSON := filepath.Join(result.Path, "package.json")
-	if _, err := os.Stat(packageJSON); os.IsNotExist(err) {
-		t.Error("Download() package.json not found in downloaded package")
-	}
-}
+			if tt.checkVersionType != nil {
+				tt.checkVersionType(t, result.Version)
+			}
 
-func TestNpmAdapter_Download_LatestVersion(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
+			if tt.checkPath {
+				if _, err := os.Stat(result.Path); os.IsNotExist(err) {
+					t.Errorf("Download() directory does not exist: %s", result.Path)
+				}
+			}
 
-	adapter := NewNpmAdapter()
-	ctx := context.Background()
-
-	source := &port.Source{
-		Type: "npm",
-		URL:  "lodash",
-	}
-
-	result, err := adapter.Download(ctx, source, "latest")
-	if err != nil {
-		t.Fatalf("Download() unexpected error: %v", err)
-	}
-
-	// Clean up
-	defer func() {
-		_ = os.RemoveAll(result.Path)
-	}()
-
-	// Verify download result
-	if result.Path == "" {
-		t.Error("Download() result.Path is empty")
-	}
-	if result.Version == "" || result.Version == "latest" {
-		t.Errorf("Download() result.Version should be resolved, got %v", result.Version)
+			if tt.checkPackageJSON {
+				packageJSON := filepath.Join(result.Path, "package.json")
+				if _, err := os.Stat(packageJSON); os.IsNotExist(err) {
+					t.Error("Download() package.json not found in downloaded package")
+				}
+			}
+		})
 	}
 }
 
@@ -206,50 +234,72 @@ func TestNpmAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
 	}
 }
 
-func TestNpmAdapter_GetLatestVersion_PackageNotFound(t *testing.T) {
-	adapter := NewNpmAdapter()
-	ctx := context.Background()
-
-	source := &port.Source{
-		Type: "npm",
-		URL:  "this-package-absolutely-does-not-exist-12345",
+func TestNpmAdapter_GetLatestVersion_PackageErrors(t *testing.T) {
+	tests := []struct {
+		name            string
+		url             string
+		skipInShort     bool
+		wantErr         bool
+		checkNetworkErr bool
+		checkVersion    func(t *testing.T, version string)
+	}{
+		{
+			name:            "package not found",
+			url:             "this-package-absolutely-does-not-exist-12345",
+			wantErr:         true,
+			checkNetworkErr: true,
+		},
+		{
+			name:        "valid package",
+			url:         "lodash",
+			skipInShort: true,
+			wantErr:     false,
+			checkVersion: func(t *testing.T, version string) {
+				if version == "" {
+					t.Error("GetLatestVersion() returned empty version")
+				}
+				// Version should be in semantic version format (e.g., "4.17.21")
+				if len(version) < 5 {
+					t.Errorf("GetLatestVersion() version seems invalid: %s", version)
+				}
+			},
+		},
 	}
 
-	_, err := adapter.GetLatestVersion(ctx, source)
-	if err == nil {
-		t.Error("GetLatestVersion() expected error for non-existent package, got nil")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipInShort && testing.Short() {
+				t.Skip("skipping integration test in short mode")
+			}
 
-	// Should be a network failure error
-	if !domain.IsNetworkError(err) {
-		t.Errorf("GetLatestVersion() error should be a network error, got %v", err)
-	}
-}
+			adapter := NewNpmAdapter()
+			ctx := context.Background()
 
-func TestNpmAdapter_GetLatestVersion_ValidPackage(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
+			source := &port.Source{
+				Type: "npm",
+				URL:  tt.url,
+			}
 
-	adapter := NewNpmAdapter()
-	ctx := context.Background()
+			version, err := adapter.GetLatestVersion(ctx, source)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetLatestVersion() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 
-	source := &port.Source{
-		Type: "npm",
-		URL:  "lodash",
-	}
+			if tt.checkNetworkErr && err != nil {
+				if !domain.IsNetworkError(err) {
+					t.Errorf("GetLatestVersion() error should be a network error, got %v", err)
+				}
+				return
+			}
 
-	version, err := adapter.GetLatestVersion(ctx, source)
-	if err != nil {
-		t.Fatalf("GetLatestVersion() unexpected error: %v", err)
-	}
+			if err != nil {
+				return
+			}
 
-	if version == "" {
-		t.Error("GetLatestVersion() returned empty version")
-	}
-
-	// Version should be in semantic version format (e.g., "4.17.21")
-	if len(version) < 5 {
-		t.Errorf("GetLatestVersion() version seems invalid: %s", version)
+			if tt.checkVersion != nil {
+				tt.checkVersion(t, version)
+			}
+		})
 	}
 }

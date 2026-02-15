@@ -9,53 +9,90 @@ import (
 )
 
 func TestFactoryAgentAdapter_ResolveAgentDir(t *testing.T) {
-	provider := adapter.NewFactoryAgentAdapter()
+	tests := []struct {
+		name            string
+		agentName       string
+		wantErr         bool
+		checkAbsolute   bool
+		checkSuffix     string
+		checkHomePrefix bool
+	}{
+		{
+			name:            "factory agent",
+			agentName:       "factory",
+			wantErr:         false,
+			checkAbsolute:   true,
+			checkSuffix:     filepath.Join(".factory", "skills"),
+			checkHomePrefix: true,
+		},
+		{
+			name:      "unsupported agent",
+			agentName: "unsupported",
+			wantErr:   true,
+		},
+		{
+			name:      "empty agent name",
+			agentName: "",
+			wantErr:   true,
+		},
+	}
 
-	t.Run("factory_agent", func(t *testing.T) {
-		dir, err := provider.ResolveAgentDir("factory")
-		if err != nil {
-			t.Fatalf("ResolveAgentDir(factory) error = %v, want nil", err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := adapter.NewFactoryAgentAdapter()
 
-		if !filepath.IsAbs(dir) {
-			t.Errorf("ResolveAgentDir(factory) = %q, want absolute path", dir)
-		}
+			dir, err := provider.ResolveAgentDir(tt.agentName)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ResolveAgentDir(%q) error = %v, wantErr %v", tt.agentName, err, tt.wantErr)
+			}
 
-		expectedSuffix := filepath.Join(".factory", "skills")
-		if !hasPathSuffix(dir, expectedSuffix) {
-			t.Errorf("ResolveAgentDir(factory) = %q, want path ending with %q", dir, expectedSuffix)
-		}
+			if err != nil {
+				// Error message should not be empty for errors
+				if err.Error() == "" {
+					t.Error("ResolveAgentDir error message is empty")
+				}
+				return
+			}
 
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("os.UserHomeDir() error = %v", err)
-		}
-		expected := filepath.Join(home, ".factory", "skills")
-		if dir != expected {
-			t.Errorf("ResolveAgentDir(factory) = %q, want %q", dir, expected)
-		}
-	})
+			if tt.checkAbsolute && !filepath.IsAbs(dir) {
+				t.Errorf("ResolveAgentDir(%q) = %q, want absolute path", tt.agentName, dir)
+			}
 
-	t.Run("unsupported_agent", func(t *testing.T) {
-		_, err := provider.ResolveAgentDir("unsupported")
-		if err == nil {
-			t.Error("ResolveAgentDir(unsupported) error = nil, want error")
-		}
-	})
+			if tt.checkSuffix != "" && !hasPathSuffix(dir, tt.checkSuffix) {
+				t.Errorf("ResolveAgentDir(%q) = %q, want path ending with %q", tt.agentName, dir, tt.checkSuffix)
+			}
 
-	t.Run("empty_agent_name", func(t *testing.T) {
-		_, err := provider.ResolveAgentDir("")
-		if err == nil {
-			t.Error("ResolveAgentDir(\"\") error = nil, want error")
-		}
-	})
+			if tt.checkHomePrefix {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					t.Fatalf("os.UserHomeDir() error = %v", err)
+				}
+				expected := filepath.Join(home, ".factory", "skills")
+				if dir != expected {
+					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
+				}
+			}
+		})
+	}
 }
 
 func TestFactoryAgentAdapter_AgentName(t *testing.T) {
-	provider := adapter.NewFactoryAgentAdapter()
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should return factory",
+			want: "factory",
+		},
+	}
 
-	name := provider.AgentName()
-	if name != "factory" {
-		t.Errorf("AgentName() = %q, want \"factory\"", name)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := adapter.NewFactoryAgentAdapter()
+			if got := provider.AgentName(); got != tt.want {
+				t.Errorf("AgentName() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

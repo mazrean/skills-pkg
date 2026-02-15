@@ -9,9 +9,23 @@ import (
 )
 
 func TestCargoAdapter_SourceType(t *testing.T) {
-	adapter := adapter.NewCargoAdapter()
-	if got := adapter.SourceType(); got != "cargo" {
-		t.Errorf("SourceType() = %v, want %v", got, "cargo")
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should return cargo",
+			want: "cargo",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := adapter.NewCargoAdapter()
+			if got := a.SourceType(); got != tt.want {
+				t.Errorf("SourceType() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
