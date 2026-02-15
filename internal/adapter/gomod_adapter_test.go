@@ -303,3 +303,96 @@ func TestGoModAdapter_GetLatestVersion_ModuleErrors(t *testing.T) {
 		})
 	}
 }
+func TestParseGOPROXY(t *testing.T) {
+	tests := []struct {
+		name     string
+		goproxy  string
+		expected []proxyEntry
+	}{
+		{
+			name:    "empty string defaults to proxy.golang.org,direct",
+			goproxy: "",
+			expected: []proxyEntry{
+				{url: "https://proxy.golang.org", fallback: true},
+				{url: "direct", fallback: true},
+			},
+		},
+		{
+			name:    "single proxy",
+			goproxy: "https://goproxy.io",
+			expected: []proxyEntry{
+				{url: "https://goproxy.io", fallback: true},
+			},
+		},
+		{
+			name:    "direct only",
+			goproxy: "direct",
+			expected: []proxyEntry{
+				{url: "direct", fallback: true},
+			},
+		},
+		{
+			name:    "off only",
+			goproxy: "off",
+			expected: []proxyEntry{
+				{url: "off", fallback: true},
+			},
+		},
+		{
+			name:    "comma-separated proxies (fallback)",
+			goproxy: "https://goproxy.io,https://proxy.golang.org,direct",
+			expected: []proxyEntry{
+				{url: "https://goproxy.io", fallback: true},
+				{url: "https://proxy.golang.org", fallback: true},
+				{url: "direct", fallback: true},
+			},
+		},
+		{
+			name:    "pipe-separated proxies (always try)",
+			goproxy: "https://goproxy.io|https://proxy.golang.org",
+			expected: []proxyEntry{
+				{url: "https://goproxy.io", fallback: true},
+				{url: "https://proxy.golang.org", fallback: false},
+			},
+		},
+		{
+			name:    "mixed comma and pipe",
+			goproxy: "https://goproxy.io|https://mirror.io,https://proxy.golang.org,direct",
+			expected: []proxyEntry{
+				{url: "https://goproxy.io", fallback: true},
+				{url: "https://mirror.io", fallback: false},
+				{url: "https://proxy.golang.org", fallback: true},
+				{url: "direct", fallback: true},
+			},
+		},
+		{
+			name:    "with whitespace",
+			goproxy: " https://goproxy.io , https://proxy.golang.org , direct ",
+			expected: []proxyEntry{
+				{url: "https://goproxy.io", fallback: true},
+				{url: "https://proxy.golang.org", fallback: true},
+				{url: "direct", fallback: true},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseGOPROXY(tt.goproxy)
+
+			if len(got) != len(tt.expected) {
+				t.Errorf("parseGOPROXY() returned %d entries, want %d", len(got), len(tt.expected))
+				return
+			}
+
+			for i, entry := range got {
+				if entry.url != tt.expected[i].url {
+					t.Errorf("parseGOPROXY()[%d].url = %v, want %v", i, entry.url, tt.expected[i].url)
+				}
+				if entry.fallback != tt.expected[i].fallback {
+					t.Errorf("parseGOPROXY()[%d].fallback = %v, want %v", i, entry.fallback, tt.expected[i].fallback)
+				}
+			}
+		})
+	}
+}
