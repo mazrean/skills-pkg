@@ -62,7 +62,7 @@ func TestGoModAdapter_Download_InvalidSource(t *testing.T) {
 		{
 			name: "wrong source type",
 			source: &port.Source{
-				Type: "npm",
+				Type: "git",
 				URL:  "golang.org/x/tools",
 			},
 			version: "v0.1.0",
@@ -217,7 +217,7 @@ func TestGoModAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
 		{
 			name: "wrong source type",
 			source: &port.Source{
-				Type: "npm",
+				Type: "git",
 				URL:  "golang.org/x/tools",
 			},
 			wantErr: true,

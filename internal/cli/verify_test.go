@@ -73,7 +73,7 @@ func TestVerifyCmd_Run(t *testing.T) {
 
 				skill2 := &domain.Skill{
 					Name:      "skill2",
-					Source:    "npm",
+					Source:    "go-module",
 					URL:       "example-skill2",
 					Version:   "2.0.0",
 					HashAlgo:  "sha256",

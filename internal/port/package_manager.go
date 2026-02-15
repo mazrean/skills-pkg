@@ -8,7 +8,7 @@ import (
 )
 
 // PackageManager is the abstraction interface for downloading skills from various sources.
-// It supports Git repositories, npm registry, and Go Module proxy.
+// It supports Git repositories and Go Module proxy.
 // Requirements: 11.1, 11.3
 type PackageManager interface {
 	// Download downloads the skill from the source.
@@ -18,7 +18,7 @@ type PackageManager interface {
 	// GetLatestVersion retrieves the latest version of the skill.
 	GetLatestVersion(ctx context.Context, source *Source) (string, error)
 
-	// SourceType returns the type of the source (git, npm, go-module).
+	// SourceType returns the type of the source (git, go-module).
 	SourceType() string
 }
 
@@ -27,8 +27,8 @@ type PackageManager interface {
 // Requirements: 2.3, 2.4, 11.4
 type Source struct {
 	Options map[string]string // Optional parameters (e.g., registry URL)
-	Type    string            // "git", "npm", "go-module"
-	URL     string            // Git URL, npm package name, Go module path
+	Type    string            // "git", "go-module"
+	URL     string            // Git URL, Go module path
 }
 
 // Validate validates the source configuration.
@@ -45,13 +45,10 @@ func (s *Source) Validate() error {
 	// Validate source type
 	validTypes := map[string]bool{
 		"git":       true,
-		"npm":       true,
 		"go-module": true,
-		"pip":       true,
-		"cargo":     true,
 	}
 	if !validTypes[s.Type] {
-		return errors.New("invalid source type: must be git, npm, go-module, pip, or cargo")
+		return errors.New("invalid source type: must be git or go-module")
 	}
 
 	return nil

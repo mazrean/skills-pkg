@@ -117,35 +117,6 @@ func TestAddCmd_Run(t *testing.T) {
 			},
 		},
 		{
-			name:      "success: add npm skill",
-			skillName: "npm-skill",
-			source:    "npm",
-			url:       "example-skill",
-			version:   "1.0.0",
-			setupFunc: setupTestConfig,
-			wantErr: false,
-			checkFunc: func(t *testing.T, configPath string) {
-				t.Helper()
-				cm := domain.NewConfigManager(configPath)
-				config, err := cm.Load(context.Background())
-				if err != nil {
-					t.Fatalf("failed to load config: %v", err)
-				}
-
-				if len(config.Skills) != 1 {
-					t.Errorf("expected 1 skill, got %d", len(config.Skills))
-				}
-
-				skill := config.Skills[0]
-				if skill.Name != "npm-skill" {
-					t.Errorf("expected name 'npm-skill', got %s", skill.Name)
-				}
-				if skill.Source != "npm" {
-					t.Errorf("expected source 'npm', got %s", skill.Source)
-				}
-			},
-		},
-		{
 			name:      "success: add go-module skill",
 			skillName: "go-skill",
 			source:    "go-module",
@@ -328,10 +299,7 @@ func TestAddCmd_Run(t *testing.T) {
 			hashService := &mockHashService{}
 			packageManagers := []port.PackageManager{
 				&mockPackageManager{sourceType: "git", tmpDir: tmpDir},
-				&mockPackageManager{sourceType: "npm", tmpDir: tmpDir},
 				&mockPackageManager{sourceType: "go-module", tmpDir: tmpDir},
-				&mockPackageManager{sourceType: "pip", tmpDir: tmpDir},
-				&mockPackageManager{sourceType: "cargo", tmpDir: tmpDir},
 			}
 			err := cmd.runWithDeps(configPath, false, hashService, packageManagers) // non-verbose mode
 

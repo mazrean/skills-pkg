@@ -46,7 +46,7 @@ func TestNewSkillManager(t *testing.T) {
 	hashService := &mockHashService{}
 	packageManagers := []port.PackageManager{
 		&mockPackageManager{sourceType: "git"},
-		&mockPackageManager{sourceType: "npm"},
+		&mockPackageManager{sourceType: "go-module"},
 	}
 
 	skillManager := NewSkillManager(configManager, hashService, packageManagers)
@@ -71,8 +71,8 @@ func TestSelectPackageManager_ValidSourceType(t *testing.T) {
 		},
 		{
 			name:       "select npm package manager",
-			sourceType: "npm",
-			wantType:   "npm",
+			sourceType: "go-module",
+			wantType:   "go-module",
 		},
 		{
 			name:       "select go-module package manager",
@@ -87,7 +87,7 @@ func TestSelectPackageManager_ValidSourceType(t *testing.T) {
 			hashService := &mockHashService{}
 			packageManagers := []port.PackageManager{
 				&mockPackageManager{sourceType: "git"},
-				&mockPackageManager{sourceType: "npm"},
+				&mockPackageManager{sourceType: "go-module"},
 				&mockPackageManager{sourceType: "go-module"},
 			}
 
@@ -112,7 +112,7 @@ func TestSelectPackageManager_UnsupportedSourceType(t *testing.T) {
 	hashService := &mockHashService{}
 	packageManagers := []port.PackageManager{
 		&mockPackageManager{sourceType: "git"},
-		&mockPackageManager{sourceType: "npm"},
+		&mockPackageManager{sourceType: "go-module"},
 	}
 
 	skillManager := NewSkillManager(configManager, hashService, packageManagers).(*skillManagerImpl)
@@ -313,6 +313,10 @@ func TestInstall_SingleSkill(t *testing.T) {
 		t.Errorf("Expected hash value 'abcd1234', got '%s'", skill.HashValue)
 	}
 
+	if skill.Version != "v1.0.0" {
+		t.Errorf("Expected version 'v1.0.0', got '%s'", skill.Version)
+	}
+
 	// Verify skill was installed to target directory
 	if _, err := os.Stat(installDir + "/test-skill"); os.IsNotExist(err) {
 		t.Error("Skill was not installed to target directory")
@@ -409,6 +413,11 @@ func TestInstall_AllSkills(t *testing.T) {
 		t.Fatalf("Failed to load updated config: %v", err)
 	}
 
+	expectedVersions := map[string]string{
+		"skill1": "v1.0.0",
+		"skill2": "v2.0.0",
+	}
+
 	for _, skillName := range []string{"skill1", "skill2"} {
 		skill := updatedConfig.FindSkillByName(skillName)
 		if skill == nil {
@@ -417,6 +426,10 @@ func TestInstall_AllSkills(t *testing.T) {
 
 		if skill.HashValue == "" {
 			t.Errorf("Hash value for skill '%s' is empty", skillName)
+		}
+
+		if skill.Version != expectedVersions[skillName] {
+			t.Errorf("Expected version '%s' for skill '%s', got '%s'", expectedVersions[skillName], skillName, skill.Version)
 		}
 	}
 }
@@ -533,7 +546,7 @@ func TestUpdate_SingleSkill(t *testing.T) {
 	// Add a skill
 	skill := &Skill{
 		Name:      "test-skill",
-		Source:    "npm",
+		Source:    "go-module",
 		URL:       "test-package",
 		Version:   "1.0.0",
 		HashAlgo:  "sha256",
@@ -545,7 +558,7 @@ func TestUpdate_SingleSkill(t *testing.T) {
 
 	// Create mock package manager that returns a new version
 	mockPM := &mockPackageManagerWithUpdate{
-		sourceType:    "npm",
+		sourceType:    "go-module",
 		latestVersion: "2.0.0",
 		downloadPath:  tempDir + "/download",
 	}
@@ -616,7 +629,7 @@ func TestUpdate_AllSkills(t *testing.T) {
 	skills := []*Skill{
 		{
 			Name:      "skill1",
-			Source:    "npm",
+			Source:    "go-module",
 			URL:       "package1",
 			Version:   "1.0.0",
 			HashAlgo:  "sha256",
@@ -639,7 +652,7 @@ func TestUpdate_AllSkills(t *testing.T) {
 
 	// Create mock package managers
 	npmPM := &mockPackageManagerWithUpdate{
-		sourceType:    "npm",
+		sourceType:    "go-module",
 		latestVersion: "2.0.0",
 		downloadPath:  tempDir + "/npm-download",
 	}
@@ -721,7 +734,7 @@ func TestUpdate_NetworkError(t *testing.T) {
 	// Add a skill
 	skill := &Skill{
 		Name:      "test-skill",
-		Source:    "npm",
+		Source:    "go-module",
 		URL:       "test-package",
 		Version:   "1.0.0",
 		HashAlgo:  "sha256",
@@ -733,7 +746,7 @@ func TestUpdate_NetworkError(t *testing.T) {
 
 	// Create mock package manager that returns a network error
 	mockPM := &mockPackageManagerWithError{
-		sourceType: "npm",
+		sourceType: "go-module",
 		err:        ErrNetworkFailure,
 	}
 
