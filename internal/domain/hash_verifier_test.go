@@ -271,7 +271,7 @@ func TestHashVerifier_VerifyAll(t *testing.T) {
 				}
 
 				// Add test skills
-				sources := []string{"git", "npm", "go-module"}
+				sources := []string{"git", "go-module", "go-module"}
 				urlPrefixes := []string{"https://github.com/test/skill", "", "github.com/test/skill"}
 
 				for i := 0; i < tt.skillCount; i++ {

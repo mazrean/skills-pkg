@@ -15,8 +15,8 @@ type Config struct {
 // Requirements: 2.2, 2.3, 2.4, 5.2, 11.4
 type Skill struct {
 	Name      string `toml:"name"`
-	Source    string `toml:"source"`           // "git", "npm", "go-module"
-	URL       string `toml:"url"`              // Git URL, npm package name, Go module path
+	Source    string `toml:"source"`           // "git", "go-module"
+	URL       string `toml:"url"`              // Git URL, Go module path
 	Version   string `toml:"version"`          // Tag, commit hash, or semantic version
 	HashAlgo  string `toml:"hash_algo"`        // "sha256"
 	HashValue string `toml:"hash_value"`       // Hex-encoded hash
@@ -38,10 +38,7 @@ func (s *Skill) Validate() error {
 	// Validate source type (requirement 11.4)
 	validSources := map[string]bool{
 		"git":       true,
-		"npm":       true,
 		"go-module": true,
-		"pip":       true,
-		"cargo":     true,
 	}
 	if !validSources[s.Source] {
 		return ErrInvalidSource

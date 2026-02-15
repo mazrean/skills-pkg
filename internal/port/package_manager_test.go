@@ -44,34 +44,10 @@ func TestSourceValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "valid_npm_source",
-			source: &port.Source{
-				Type: "npm",
-				URL:  "example-skill",
-			},
-			wantErr: false,
-		},
-		{
 			name: "valid_go_module_source",
 			source: &port.Source{
 				Type: "go-module",
 				URL:  "github.com/example/skill",
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid_pip_source",
-			source: &port.Source{
-				Type: "pip",
-				URL:  "example-package",
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid_cargo_source",
-			source: &port.Source{
-				Type: "cargo",
-				URL:  "example-crate",
 			},
 			wantErr: false,
 		},

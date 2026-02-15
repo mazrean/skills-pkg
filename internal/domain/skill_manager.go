@@ -22,6 +22,11 @@ type SkillManager interface {
 	// Install installs the specified skill. If skillName is empty, installs all skills.
 	Install(ctx context.Context, skillName string) error
 
+	// InstallSingleSkill installs a single skill that has been added to the config.
+	// It downloads the skill, calculates the hash, updates the config, and saves it.
+	// This is useful when you want to add a skill to the config and install it in one operation.
+	InstallSingleSkill(ctx context.Context, config *Config, skill *Skill) error
+
 	// Update updates the specified skill. If skillName is empty, updates all skills.
 	Update(ctx context.Context, skillName string) (*UpdateResult, error)
 
@@ -69,7 +74,7 @@ func NewSkillManager(
 func (s *skillManagerImpl) selectPackageManager(sourceType string) (port.PackageManager, error) {
 	// Validate that source type is not empty
 	if sourceType == "" {
-		return nil, fmt.Errorf("%w: source type is empty. Supported types: git, npm, go-module, pip, cargo", ErrInvalidSource)
+		return nil, fmt.Errorf("%w: source type is empty. Supported types: git, go-module", ErrInvalidSource)
 	}
 
 	// Find the package manager that matches the source type
@@ -80,7 +85,7 @@ func (s *skillManagerImpl) selectPackageManager(sourceType string) (port.Package
 	}
 
 	// No matching package manager found
-	return nil, fmt.Errorf("%w: source type '%s' is not supported. Supported types: git, npm, go-module, pip, cargo", ErrInvalidSource, sourceType)
+	return nil, fmt.Errorf("%w: source type '%s' is not supported. Supported types: git, go-module", ErrInvalidSource, sourceType)
 }
 
 // Install installs the specified skill.
@@ -112,7 +117,7 @@ func (s *skillManagerImpl) Install(ctx context.Context, skillName string) error 
 
 	// Install each skill
 	for _, skill := range skillsToInstall {
-		if err := s.installSingleSkill(ctx, config, skill); err != nil {
+		if err := s.InstallSingleSkill(ctx, config, skill); err != nil {
 			return err
 		}
 	}
@@ -232,9 +237,9 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
-// installSingleSkill installs a single skill.
+// InstallSingleSkill installs a single skill.
 // Requirements: 3.3, 3.4, 4.3, 4.4, 5.3, 6.2, 6.4, 6.5, 6.6, 10.2, 10.5, 12.1, 12.2, 12.3
-func (s *skillManagerImpl) installSingleSkill(ctx context.Context, config *Config, skill *Skill) error {
+func (s *skillManagerImpl) InstallSingleSkill(ctx context.Context, config *Config, skill *Skill) error {
 	// Progress information (Requirement 12.1)
 	fmt.Printf("Installing skill '%s' from %s...\n", skill.Name, skill.Source)
 
@@ -280,7 +285,8 @@ func (s *skillManagerImpl) installSingleSkill(ctx context.Context, config *Confi
 		return fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
 	}
 
-	// Update skill with hash values
+	// Update skill with hash values and actual version
+	skill.Version = downloadResult.Version
 	skill.HashAlgo = hashResult.Algorithm
 	skill.HashValue = hashResult.Value
 
@@ -420,7 +426,7 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	}
 
 	// Update skill with new version and hash (Requirement 7.5)
-	skill.Version = latestVersion
+	skill.Version = downloadResult.Version
 	skill.HashAlgo = hashResult.Algorithm
 	skill.HashValue = hashResult.Value
 
@@ -442,13 +448,13 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	}
 
 	// Display update information (Requirement 7.6, 12.1)
-	fmt.Printf("Successfully updated skill '%s' from %s to %s\n", skill.Name, oldVersion, latestVersion)
+	fmt.Printf("Successfully updated skill '%s' from %s to %s\n", skill.Name, oldVersion, downloadResult.Version)
 
 	// Return update result (Requirement 7.6)
 	return &UpdateResult{
 		SkillName:  skill.Name,
 		OldVersion: oldVersion,
-		NewVersion: latestVersion,
+		NewVersion: downloadResult.Version,
 	}, nil
 }
 

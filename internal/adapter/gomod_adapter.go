@@ -20,6 +20,11 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
+const (
+	// dirPerms is the default permission for created directories
+	dirPerms = 0755
+)
+
 // proxyEntry represents a single entry in GOPROXY.
 type proxyEntry struct {
 	url      string // "direct", "off", or an actual proxy URL
