@@ -27,9 +27,9 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X 'github.com/mazrean/skills-pkg/internal/config.version={{.Version}}'
-      - -X 'github.com/mazrean/skills-pkg/internal/config.commit={{.Commit}}'
-      - -X 'github.com/mazrean/skills-pkg/internal/config.date={{.Date}}'
+      - -X 'main.version={{.Version}}'
+      - -X 'main.commit={{.Commit}}'
+      - -X 'main.date={{.Date}}'
 
 archives:
   - name_template: >-
@@ -58,7 +58,7 @@ archives:
           group: root
           mtime: "{{ .CommitDate }}"
 nfpms:
-  - id: mcp-tarmaq-nfpm
+  - id: skills-pkg-nfpm
     file_name_template: "{{ .ProjectName }}_{{ .Arch }}"
     homepage: https://github.com/mazrean/skills-pkg
     maintainer: Shunsuke Wakamatsu <50093633+mazrean@users.noreply.github.com>
@@ -72,17 +72,17 @@ nfpms:
     mtime: "{{ .CommitDate }}"
 
 # Modern Homebrew configuration (recommended)
-homebrew_casks:
+brews:
   - repository:
       owner: mazrean
       name: homebrew-tap
-    homepage: https://github.com/mazrean/kessoku
-    description: A CLI tool for managing kessoku
+    homepage: https://github.com/mazrean/skills-pkg
+    description: Agent Skills package manager for Claude Code and Codex CLI
     license: MIT
     commit_author:
       name: Shunsuke Wakamatsu
       email: 50093633+mazrean@users.noreply.github.com
-    commit_msg_template: "Cask update for {{ .ProjectName }} version {{ .Tag }}"
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
 
 checksum:
   name_template: 'checksums.txt'
