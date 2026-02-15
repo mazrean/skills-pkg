@@ -63,9 +63,9 @@ func TestHashResultStructure(t *testing.T) {
 // Requirements: 5.1, 5.2
 func TestHashServiceAlgorithm(t *testing.T) {
 	tests := []struct {
-		name           string
-		service        port.HashService
-		wantNonEmpty   bool
+		service      port.HashService
+		name         string
+		wantNonEmpty bool
 	}{
 		{
 			name:         "mock_hash_service",

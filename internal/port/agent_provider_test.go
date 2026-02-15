@@ -30,17 +30,17 @@ func TestAgentProviderInterface(t *testing.T) {
 // Requirements: 10.3, 10.4
 func TestAgentProviderResolveAgentDir(t *testing.T) {
 	tests := []struct {
-		name           string
-		provider       port.AgentProvider
-		agentName      string
-		wantErr        bool
+		name            string
+		provider        port.AgentProvider
+		agentName       string
+		wantErr         bool
 		wantNonEmptyDir bool
 	}{
 		{
-			name:           "valid_agent",
-			provider:       &mockAgentProvider{},
-			agentName:      "claude",
-			wantErr:        false,
+			name:            "valid_agent",
+			provider:        &mockAgentProvider{},
+			agentName:       "claude",
+			wantErr:         false,
 			wantNonEmptyDir: true,
 		},
 	}
@@ -62,8 +62,8 @@ func TestAgentProviderResolveAgentDir(t *testing.T) {
 // Requirements: 10.3, 10.4
 func TestAgentProviderAgentName(t *testing.T) {
 	tests := []struct {
-		name         string
 		provider     port.AgentProvider
+		name         string
 		wantNonEmpty bool
 	}{
 		{

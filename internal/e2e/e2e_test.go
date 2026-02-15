@@ -45,8 +45,8 @@ func TestE2ECompleteFlow(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		commandArgs    []string
 		validateOutput func(t *testing.T, output []byte, exitCode int)
+		commandArgs    []string
 	}{
 		{
 			name: "init",
@@ -194,10 +194,10 @@ func TestE2EMultipleAgentInstallation(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
 		setupFunc      func(t *testing.T)
-		commandFunc    func(ctx context.Context) *exec.Cmd
 		validateOutput func(t *testing.T, output []byte, exitCode int)
+		commandFunc    func(ctx context.Context) *exec.Cmd
+		name           string
 	}{
 		{
 			name:      "init_multiple_agents",
@@ -492,8 +492,8 @@ func TestE2EVerboseMode(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		commandArgs     []string
 		validateOutput  func(t *testing.T, output string)
+		commandArgs     []string
 		requireInitFile bool
 	}{
 		{
@@ -576,8 +576,8 @@ func TestE2ERealRepository(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		commandArgs    []string
 		validateOutput func(t *testing.T, output []byte, exitCode int)
+		commandArgs    []string
 	}{
 		{
 			name: "add_real_skill",

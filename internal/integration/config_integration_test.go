@@ -16,9 +16,9 @@ func TestConfigManagerTOMLIntegration(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		setupFunc func(t *testing.T) (ctx context.Context, configPath string, configManager *domain.ConfigManager)
 		testFunc  func(t *testing.T, ctx context.Context, configPath string, configManager *domain.ConfigManager)
+		setupFunc func(t *testing.T) (ctx context.Context, configPath string, configManager *domain.ConfigManager)
+		name      string
 	}{
 		{
 			name: "Initialize_Load_Save_Integration",
@@ -168,9 +168,9 @@ func TestSkillOperationIntegration(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		setupFunc func(t *testing.T) (ctx context.Context, configManager *domain.ConfigManager)
 		testFunc  func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager)
+		setupFunc func(t *testing.T) (ctx context.Context, configManager *domain.ConfigManager)
+		name      string
 	}{
 		{
 			name: "Add_Update_Remove_Skill_Flow",

@@ -82,16 +82,16 @@ func TestNpmAdapter_Download_InvalidSource(t *testing.T) {
 
 func TestNpmAdapter_Download_PackageErrors(t *testing.T) {
 	tests := []struct {
+		checkVersionType func(t *testing.T, version string)
 		name             string
 		url              string
 		version          string
+		checkVersion     string
 		skipInShort      bool
 		wantErr          bool
 		checkNetworkErr  bool
 		checkPath        bool
-		checkVersion     string
 		checkPackageJSON bool
-		checkVersionType func(t *testing.T, version string)
 	}{
 		{
 			name:            "package not found",
@@ -236,12 +236,12 @@ func TestNpmAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
 
 func TestNpmAdapter_GetLatestVersion_PackageErrors(t *testing.T) {
 	tests := []struct {
+		checkVersion    func(t *testing.T, version string)
 		name            string
 		url             string
 		skipInShort     bool
 		wantErr         bool
 		checkNetworkErr bool
-		checkVersion    func(t *testing.T, version string)
 	}{
 		{
 			name:            "package not found",

@@ -12,25 +12,25 @@ func TestLogger_Info(t *testing.T) {
 	tests := []struct {
 		name   string
 		format string
-		args   []interface{}
 		want   string
+		args   []any
 	}{
 		{
 			name:   "simple message",
 			format: "Test message: %s",
-			args:   []interface{}{"hello"},
+			args:   []any{"hello"},
 			want:   "Test message: hello\n",
 		},
 		{
 			name:   "message without arguments",
 			format: "Simple message",
-			args:   []interface{}{},
+			args:   []any{},
 			want:   "Simple message\n",
 		},
 		{
 			name:   "message with multiple arguments",
 			format: "User %s has %d items",
-			args:   []interface{}{"Alice", 5},
+			args:   []any{"Alice", 5},
 			want:   "User Alice has 5 items\n",
 		},
 	}
@@ -59,25 +59,25 @@ func TestLogger_Error(t *testing.T) {
 	tests := []struct {
 		name   string
 		format string
-		args   []interface{}
 		want   string
+		args   []any
 	}{
 		{
 			name:   "simple error message",
 			format: "Error: %s",
-			args:   []interface{}{"test error"},
+			args:   []any{"test error"},
 			want:   "Error: test error\n",
 		},
 		{
 			name:   "error without arguments",
 			format: "An error occurred",
-			args:   []interface{}{},
+			args:   []any{},
 			want:   "An error occurred\n",
 		},
 		{
 			name:   "error with multiple arguments",
 			format: "Failed to process %s: %v",
-			args:   []interface{}{"file.txt", "permission denied"},
+			args:   []any{"file.txt", "permission denied"},
 			want:   "Failed to process file.txt: permission denied\n",
 		},
 	}
@@ -105,17 +105,17 @@ func TestLogger_Verbose(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		verboseEnabled bool
 		format         string
-		args           []interface{}
-		wantEmpty      bool
 		wantContains   []string
+		args           []any
+		verboseEnabled bool
+		wantEmpty      bool
 	}{
 		{
 			name:           "verbose enabled with message",
 			verboseEnabled: true,
 			format:         "Debug info: %d",
-			args:           []interface{}{42},
+			args:           []any{42},
 			wantEmpty:      false,
 			wantContains:   []string{"[VERBOSE]", "Debug info: 42"},
 		},
@@ -123,7 +123,7 @@ func TestLogger_Verbose(t *testing.T) {
 			name:           "verbose disabled",
 			verboseEnabled: false,
 			format:         "Debug info: %d",
-			args:           []interface{}{42},
+			args:           []any{42},
 			wantEmpty:      true,
 			wantContains:   []string{},
 		},
@@ -131,7 +131,7 @@ func TestLogger_Verbose(t *testing.T) {
 			name:           "verbose enabled without arguments",
 			verboseEnabled: true,
 			format:         "Starting process",
-			args:           []interface{}{},
+			args:           []any{},
 			wantEmpty:      false,
 			wantContains:   []string{"[VERBOSE]", "Starting process"},
 		},

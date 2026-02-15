@@ -13,9 +13,9 @@ func TestCodexAgentAdapter_ResolveAgentDir(t *testing.T) {
 	tests := []struct {
 		name            string
 		agentName       string
+		checkSuffix     string
 		wantErr         bool
 		checkAbsolute   bool
-		checkSuffix     string
 		checkHomePrefix bool
 	}{
 		{

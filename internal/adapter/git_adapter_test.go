@@ -32,21 +32,21 @@ func TestGitAdapter_SourceType(t *testing.T) {
 
 func TestGitAdapter_Download(t *testing.T) {
 	tests := []struct {
+		checkVersion     func(t *testing.T, got string)
 		name             string
 		url              string
 		version          string
 		skipInShort      bool
 		wantErr          bool
 		expectErrOnRetry bool
-		checkVersion     func(t *testing.T, got string)
 		checkPath        bool
 	}{
 		{
-			name:         "download with tag",
-			url:          "https://github.com/go-git/go-git.git",
-			version:      "v5.12.0",
-			skipInShort:  true,
-			wantErr:      false,
+			name:        "download with tag",
+			url:         "https://github.com/go-git/go-git.git",
+			version:     "v5.12.0",
+			skipInShort: true,
+			wantErr:     false,
 			checkVersion: func(t *testing.T, got string) {
 				if got != "v5.12.0" {
 					t.Errorf("Download() version = %v, want %v", got, "v5.12.0")
@@ -144,11 +144,11 @@ func TestGitAdapter_Download(t *testing.T) {
 
 func TestGitAdapter_GetLatestVersion(t *testing.T) {
 	tests := []struct {
+		checkResult func(t *testing.T, version string)
 		name        string
 		url         string
 		skipInShort bool
 		wantErr     bool
-		checkResult func(t *testing.T, version string)
 	}{
 		{
 			name:        "valid repository",

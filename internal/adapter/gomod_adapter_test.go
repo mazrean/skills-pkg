@@ -82,16 +82,16 @@ func TestGoModAdapter_Download_InvalidSource(t *testing.T) {
 
 func TestGoModAdapter_Download_ModuleErrors(t *testing.T) {
 	tests := []struct {
+		checkVersionType func(t *testing.T, version string)
 		name             string
 		url              string
 		version          string
+		checkVersion     string
 		skipInShort      bool
 		wantErr          bool
 		checkNetworkErr  bool
 		checkPath        bool
-		checkVersion     string
 		checkGoMod       bool
-		checkVersionType func(t *testing.T, version string)
 	}{
 		{
 			name:            "module not found",
@@ -236,12 +236,12 @@ func TestGoModAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
 
 func TestGoModAdapter_GetLatestVersion_ModuleErrors(t *testing.T) {
 	tests := []struct {
+		checkVersion    func(t *testing.T, version string)
 		name            string
 		url             string
 		skipInShort     bool
 		wantErr         bool
 		checkNetworkErr bool
-		checkVersion    func(t *testing.T, version string)
 	}{
 		{
 			name:            "module not found",

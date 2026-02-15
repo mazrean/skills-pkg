@@ -17,9 +17,9 @@ func TestHashVerificationIntegration(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		setupFunc func(t *testing.T) (ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string)
 		testFunc  func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string)
+		setupFunc func(t *testing.T) (ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string)
+		name      string
 	}{
 		{
 			name: "Calculate_And_Verify_Hash_Integration",

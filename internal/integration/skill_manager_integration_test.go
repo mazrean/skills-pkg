@@ -23,12 +23,12 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		skipTest      bool
-		skipReason    string
-		setupFunc     func(t *testing.T) (configPath, installDir string)
-		runTest       func(t *testing.T, configPath, installDir string)
-		validateFunc  func(t *testing.T, configPath, installDir string)
+		setupFunc    func(t *testing.T) (configPath, installDir string)
+		runTest      func(t *testing.T, configPath, installDir string)
+		validateFunc func(t *testing.T, configPath, installDir string)
+		name         string
+		skipReason   string
+		skipTest     bool
 	}{
 		{
 			name:       "Install_Git_Skill_Integration",
@@ -116,19 +116,19 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 			},
 		},
 		{
-			name:       "Install_Multiple_Targets_Integration",
-			skipTest:   true,
-			skipReason: "Skipping Git integration test - requires external repository access",
-			setupFunc:  func(t *testing.T) (string, string) { return "", "" },
-			runTest:    func(t *testing.T, configPath, installDir string) {},
+			name:         "Install_Multiple_Targets_Integration",
+			skipTest:     true,
+			skipReason:   "Skipping Git integration test - requires external repository access",
+			setupFunc:    func(t *testing.T) (string, string) { return "", "" },
+			runTest:      func(t *testing.T, configPath, installDir string) {},
 			validateFunc: func(t *testing.T, configPath, installDir string) {},
 		},
 		{
-			name:       "Uninstall_Skill_Integration",
-			skipTest:   true,
-			skipReason: "Skipping Git integration test - requires external repository access",
-			setupFunc:  func(t *testing.T) (string, string) { return "", "" },
-			runTest:    func(t *testing.T, configPath, installDir string) {},
+			name:         "Uninstall_Skill_Integration",
+			skipTest:     true,
+			skipReason:   "Skipping Git integration test - requires external repository access",
+			setupFunc:    func(t *testing.T) (string, string) { return "", "" },
+			runTest:      func(t *testing.T, configPath, installDir string) {},
 			validateFunc: func(t *testing.T, configPath, installDir string) {},
 		},
 		{
@@ -186,11 +186,11 @@ func TestSkillManagerErrorHandling(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		skipTest      bool
-		skipReason    string
-		setupFunc     func(t *testing.T) (ctx context.Context, configManager *domain.ConfigManager)
-		testFunc      func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager)
+		setupFunc  func(t *testing.T) (ctx context.Context, configManager *domain.ConfigManager)
+		testFunc   func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager)
+		name       string
+		skipReason string
+		skipTest   bool
 	}{
 		{
 			name:       "FileSystem_Error_Distinction",

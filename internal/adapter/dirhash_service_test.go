@@ -12,10 +12,10 @@ import (
 // TestDirhashService_CalculateHash tests the CalculateHash method
 func TestDirhashService_CalculateHash(t *testing.T) {
 	tests := []struct {
-		name      string
 		setupFunc func(t *testing.T) string
-		wantErr   bool
 		checkFunc func(t *testing.T, result *port.HashResult, err error)
+		name      string
+		wantErr   bool
 	}{
 		{
 			name: "success: calculate hash for simple directory",

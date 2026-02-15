@@ -34,8 +34,8 @@ func TestCargoAdapter_Download_InvalidSource(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
 		source  *port.Source
+		name    string
 		wantErr bool
 	}{
 		{
@@ -79,8 +79,8 @@ func TestCargoAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
 		source  *port.Source
+		name    string
 		wantErr bool
 	}{
 		{

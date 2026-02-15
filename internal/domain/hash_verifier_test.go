@@ -13,12 +13,12 @@ import (
 
 func TestHashVerifier_Verify(t *testing.T) {
 	tests := []struct {
-		name         string
-		setupFile    bool
-		modifyFile   bool
-		skillName    string
-		wantErr      bool
-		validate     func(t *testing.T, result *domain.VerifyResult, expectedHash string, skillDir string)
+		validate   func(t *testing.T, result *domain.VerifyResult, expectedHash string, skillDir string)
+		name       string
+		skillName  string
+		setupFile  bool
+		modifyFile bool
+		wantErr    bool
 	}{
 		{
 			name:       "verify matching hash",
@@ -119,8 +119,8 @@ func TestHashVerifier_Verify(t *testing.T) {
 
 			// Create a config manager and initialize it
 			configManager := domain.NewConfigManager(configPath)
-			if err := configManager.Initialize(ctx, []string{tmpDir}); err != nil {
-				t.Fatalf("failed to initialize config: %v", err)
+			if initErr := configManager.Initialize(ctx, []string{tmpDir}); initErr != nil {
+				t.Fatalf("failed to initialize config: %v", initErr)
 			}
 
 			// Add a test skill with the calculated hash
@@ -132,8 +132,8 @@ func TestHashVerifier_Verify(t *testing.T) {
 				HashAlgo:  expectedHash.Algorithm,
 				HashValue: expectedHash.Value,
 			}
-			if err := configManager.AddSkill(ctx, testSkill); err != nil {
-				t.Fatalf("failed to add test skill: %v", err)
+			if addErr := configManager.AddSkill(ctx, testSkill); addErr != nil {
+				t.Fatalf("failed to add test skill: %v", addErr)
 			}
 
 			// Create the hash verifier
@@ -141,8 +141,8 @@ func TestHashVerifier_Verify(t *testing.T) {
 
 			// Modify the file if requested
 			if tt.modifyFile {
-				if err := os.WriteFile(testFile, []byte("modified content"), 0o644); err != nil {
-					t.Fatalf("failed to modify test file: %v", err)
+				if writeErr := os.WriteFile(testFile, []byte("modified content"), 0o644); writeErr != nil {
+					t.Fatalf("failed to modify test file: %v", writeErr)
 				}
 			}
 
@@ -177,14 +177,14 @@ func TestHashVerifier_Verify(t *testing.T) {
 func TestHashVerifier_VerifyAll(t *testing.T) {
 	tests := []struct {
 		name                string
+		wantFailedSkillName string
 		skillCount          int
 		modifySkillIndex    int
-		expectEmptyConfig   bool
-		wantErr             bool
 		wantTotalSkills     int
 		wantSuccessCount    int
 		wantFailureCount    int
-		wantFailedSkillName string
+		expectEmptyConfig   bool
+		wantErr             bool
 	}{
 		{
 			name:              "verify all matching hashes",
