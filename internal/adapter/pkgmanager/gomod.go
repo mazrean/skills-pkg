@@ -7,10 +7,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -21,7 +23,16 @@ import (
 const (
 	// dirPerms is the default permission for created directories
 	dirPerms = 0755
+
+	// minGitLsRemoteFields is the minimum number of fields in git ls-remote output
+	minGitLsRemoteFields = 2
 )
+
+// proxyEntry represents a single entry in GOPROXY.
+type proxyEntry struct {
+	url      string // "direct", "off", or an actual proxy URL
+	fallback bool   // true if this is a fallback entry (comma-separated)
+}
 
 // GoMod implements the PackageManager interface for Go Module proxy.
 // It handles downloading modules from Go Module proxy, extracting zip files,
@@ -29,21 +40,65 @@ const (
 // Requirements: 4.2, 4.5, 4.6, 7.4, 11.2
 type GoMod struct {
 	httpClient *http.Client
-	proxyURL   string
+	proxies    []proxyEntry
+}
+
+// parseGOPROXY parses the GOPROXY environment variable.
+// It supports comma-separated (fallback) and pipe-separated (always try) proxies.
+// The special values "direct" and "off" are also supported.
+func parseGOPROXY(goproxy string) []proxyEntry {
+	if goproxy == "" {
+		// Default to https://proxy.golang.org,direct
+		return []proxyEntry{
+			{url: "https://proxy.golang.org", fallback: true},
+			{url: "direct", fallback: true},
+		}
+	}
+
+	var entries []proxyEntry
+	// Split by comma first (fallback mode)
+	for part := range strings.SplitSeq(goproxy, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// Each comma-separated part may contain pipe-separated entries
+		i := 0
+		for pipePart := range strings.SplitSeq(part, "|") {
+			pipePart = strings.TrimSpace(pipePart)
+			if pipePart == "" {
+				continue
+			}
+			// Only the first pipe-separated entry is a fallback
+			entries = append(entries, proxyEntry{
+				url:      pipePart,
+				fallback: i == 0,
+			})
+			i++
+		}
+	}
+
+	if len(entries) == 0 {
+		// Fallback to default
+		return []proxyEntry{
+			{url: "https://proxy.golang.org", fallback: true},
+			{url: "direct", fallback: true},
+		}
+	}
+
+	return entries
 }
 
 // NewGoMod creates a new Go Module adapter instance.
 // It uses the default Go Module proxy (https://proxy.golang.org) unless
 // overridden by the source options or GOPROXY environment variable.
 func NewGoMod() *GoMod {
-	proxyURL := os.Getenv("GOPROXY")
-	if proxyURL == "" || proxyURL == "direct" || strings.Contains(proxyURL, ",") {
-		// Use default proxy if GOPROXY is not set, is "direct", or contains multiple proxies
-		proxyURL = "https://proxy.golang.org"
-	}
+	goproxy := os.Getenv("GOPROXY")
+	proxies := parseGOPROXY(goproxy)
 
 	return &GoMod{
-		proxyURL:   proxyURL,
+		proxies:    proxies,
 		httpClient: &http.Client{},
 	}
 }
@@ -67,31 +122,31 @@ func (a *GoMod) Download(ctx context.Context, source *port.Source, version strin
 		return nil, fmt.Errorf("source type must be 'go-module', got '%s'", source.Type)
 	}
 
-	// Get proxy URL from source options if provided
-	proxyURL := a.proxyURL
+	// Get proxies from source options if provided, otherwise use configured proxies
+	proxies := a.proxies
 	if url, ok := source.Options["proxy"]; ok && url != "" {
-		proxyURL = url
+		proxies = parseGOPROXY(url)
 	}
 
 	// Resolve version
 	resolvedVersion := version
 	if version == "" || version == "latest" {
-		latestVersion, err := a.fetchLatestVersion(ctx, proxyURL, source.URL)
+		latestVersion, err := a.fetchLatestVersionWithProxies(ctx, proxies, source.URL)
 		if err != nil {
 			return nil, err
 		}
 		resolvedVersion = latestVersion
 	}
 
-	// Download zip file
-	zipURL := fmt.Sprintf("%s/%s/@v/%s.zip", strings.TrimSuffix(proxyURL, "/"), source.URL, resolvedVersion)
-
+	// Create temp directory
 	tempDir, err := a.createTempDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary directory: %w", err)
 	}
 
-	if err := a.downloadAndExtractZip(ctx, zipURL, tempDir, source.URL, resolvedVersion); err != nil {
+	// Try downloading with each proxy
+	err = a.downloadWithProxies(ctx, proxies, source.URL, resolvedVersion, tempDir)
+	if err != nil {
 		// Clean up on error
 		_ = os.RemoveAll(tempDir)
 		return nil, err
@@ -115,19 +170,108 @@ func (a *GoMod) GetLatestVersion(ctx context.Context, source *port.Source) (stri
 		return "", fmt.Errorf("source type must be 'go-module', got '%s'", source.Type)
 	}
 
-	// Get proxy URL from source options if provided
-	proxyURL := a.proxyURL
+	// Get proxies from source options if provided, otherwise use configured proxies
+	proxies := a.proxies
 	if url, ok := source.Options["proxy"]; ok && url != "" {
-		proxyURL = url
+		proxies = parseGOPROXY(url)
 	}
 
-	return a.fetchLatestVersion(ctx, proxyURL, source.URL)
+	return a.fetchLatestVersionWithProxies(ctx, proxies, source.URL)
 }
 
 // goModuleLatestInfo represents the response from the @latest endpoint.
 type goModuleLatestInfo struct {
 	Version string `json:"Version"`
 	Time    string `json:"Time"`
+}
+
+// fetchLatestVersionWithProxies tries to fetch the latest version using the configured proxies.
+// It tries each proxy in order until one succeeds or all fail.
+func (a *GoMod) fetchLatestVersionWithProxies(ctx context.Context, proxies []proxyEntry, modulePath string) (string, error) {
+	var lastErr error
+
+	for _, proxy := range proxies {
+		if proxy.url == "off" {
+			return "", fmt.Errorf("%w: GOPROXY is set to 'off', downloads are disabled", domain.ErrNetworkFailure)
+		}
+
+		if proxy.url == "direct" {
+			version, err := a.fetchLatestVersionDirect(ctx, modulePath)
+			if err == nil {
+				return version, nil
+			}
+			lastErr = err
+			if !proxy.fallback {
+				continue
+			}
+			// If this is a fallback entry, try the next proxy
+			continue
+		}
+
+		// Try proxy
+		version, err := a.fetchLatestVersion(ctx, proxy.url, modulePath)
+		if err == nil {
+			return version, nil
+		}
+
+		lastErr = err
+		// If this is not a fallback entry (pipe-separated), continue to the next one
+		if !proxy.fallback {
+			continue
+		}
+		// Otherwise, this is a fallback entry (comma-separated), so try the next one
+	}
+
+	if lastErr != nil {
+		return "", lastErr
+	}
+
+	return "", fmt.Errorf("%w: failed to fetch latest version for %s from any proxy", domain.ErrNetworkFailure, modulePath)
+}
+
+// downloadWithProxies tries to download the module using the configured proxies.
+// It tries each proxy in order until one succeeds or all fail.
+func (a *GoMod) downloadWithProxies(ctx context.Context, proxies []proxyEntry, modulePath, version, targetDir string) error {
+	var lastErr error
+
+	for _, proxy := range proxies {
+		if proxy.url == "off" {
+			return fmt.Errorf("%w: GOPROXY is set to 'off', downloads are disabled", domain.ErrNetworkFailure)
+		}
+
+		if proxy.url == "direct" {
+			err := a.downloadDirect(ctx, modulePath, version, targetDir)
+			if err == nil {
+				return nil
+			}
+			lastErr = err
+			if !proxy.fallback {
+				continue
+			}
+			// If this is a fallback entry, try the next proxy
+			continue
+		}
+
+		// Try proxy
+		zipURL := fmt.Sprintf("%s/%s/@v/%s.zip", strings.TrimSuffix(proxy.url, "/"), modulePath, version)
+		err := a.downloadAndExtractZip(ctx, zipURL, targetDir, modulePath, version)
+		if err == nil {
+			return nil
+		}
+
+		lastErr = err
+		// If this is not a fallback entry (pipe-separated), continue to the next one
+		if !proxy.fallback {
+			continue
+		}
+		// Otherwise, this is a fallback entry (comma-separated), so try the next one
+	}
+
+	if lastErr != nil {
+		return lastErr
+	}
+
+	return fmt.Errorf("%w: failed to download module %s from any proxy", domain.ErrNetworkFailure, modulePath)
 }
 
 // fetchLatestVersion fetches the latest version from the Go Module proxy.
@@ -312,4 +456,179 @@ func (a *GoMod) createTempDir() (string, error) {
 	}
 
 	return tempDir, nil
+}
+
+// fetchLatestVersionDirect fetches the latest version directly from the version control system.
+// It uses git to query the repository for the latest tag.
+func (a *GoMod) fetchLatestVersionDirect(ctx context.Context, modulePath string) (string, error) {
+	// Convert module path to repository URL
+	// For simplicity, we assume the module path is a valid git repository URL
+	// In a full implementation, this would need to handle various VCS systems and URL schemes
+	repoURL := "https://" + modulePath
+
+	// Use git ls-remote to get the latest tag
+	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--tags", "--refs", repoURL)
+	output, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return "", fmt.Errorf("%w: failed to fetch tags from %s: %s", domain.ErrNetworkFailure, repoURL, string(exitErr.Stderr))
+		}
+		return "", fmt.Errorf("%w: failed to fetch tags from %s: %w", domain.ErrNetworkFailure, repoURL, err)
+	}
+
+	// Parse the output to find the latest version tag
+	lines := strings.Split(string(output), "\n")
+	var latestVersion string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Fields(line)
+		if len(parts) < minGitLsRemoteFields {
+			continue
+		}
+
+		ref := parts[1]
+		// Extract version from refs/tags/vX.Y.Z
+		if tag, found := strings.CutPrefix(ref, "refs/tags/"); found {
+			// Simple heuristic: use the last tag as the latest
+			// In a full implementation, this would need semantic version comparison
+			latestVersion = tag
+		}
+	}
+
+	if latestVersion == "" {
+		return "", fmt.Errorf("%w: no version tags found for module %s", domain.ErrNetworkFailure, modulePath)
+	}
+
+	return latestVersion, nil
+}
+
+// downloadDirect downloads a module directly from the version control system.
+// It uses git to clone the repository at the specified version.
+func (a *GoMod) downloadDirect(ctx context.Context, modulePath, version, targetDir string) error {
+	// Convert module path to repository URL
+	repoURL := "https://" + modulePath
+
+	// Create a temporary directory for the clone
+	cloneDir, err := os.MkdirTemp("", "skills-pkg-git-")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary directory: %w", err)
+	}
+	defer func() {
+		_ = os.RemoveAll(cloneDir)
+	}()
+
+	// Clone the repository with the specified tag/branch
+	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", "--branch", version, repoURL, cloneDir)
+	err = cmd.Run()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return fmt.Errorf("%w: failed to clone repository %s at version %s: %s", domain.ErrNetworkFailure, repoURL, version, string(exitErr.Stderr))
+		}
+		return fmt.Errorf("%w: failed to clone repository %s at version %s: %w", domain.ErrNetworkFailure, repoURL, version, err)
+	}
+
+	// Copy files from clone directory to target directory, excluding .git
+	entries, err := os.ReadDir(cloneDir)
+	if err != nil {
+		return fmt.Errorf("failed to read clone directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		// Skip .git directory
+		if entry.Name() == ".git" {
+			continue
+		}
+
+		src := filepath.Join(cloneDir, entry.Name())
+		dst := filepath.Join(targetDir, entry.Name())
+
+		if entry.IsDir() {
+			if err := copyDir(src, dst); err != nil {
+				return fmt.Errorf("failed to copy directory %s: %w", entry.Name(), err)
+			}
+		} else {
+			if err := copyFile(src, dst); err != nil {
+				return fmt.Errorf("failed to copy file %s: %w", entry.Name(), err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// copyFile copies a single file from src to dst.
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = srcFile.Close()
+	}()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = dstFile.Close()
+	}()
+
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return err
+	}
+
+	// Copy permissions
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	return os.Chmod(dst, srcInfo.Mode())
+}
+
+// copyDir recursively copies a directory from src to dst.
+func copyDir(src, dst string) error {
+	// Create destination directory
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	err = os.MkdirAll(dst, srcInfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	// Read source directory
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			err = copyDir(srcPath, dstPath)
+			if err != nil {
+				return err
+			}
+		} else {
+			err = copyFile(srcPath, dstPath)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

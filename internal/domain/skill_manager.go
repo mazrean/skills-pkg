@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/mazrean/skills-pkg/internal/port"
+	"golang.org/x/sync/errgroup"
 )
 
 // Directory permission constants
@@ -21,6 +22,12 @@ const (
 type SkillManager interface {
 	// Install installs the specified skill. If skillName is empty, installs all skills.
 	Install(ctx context.Context, skillName string) error
+
+	// InstallSingleSkill installs a single skill that has been added to the config.
+	// It downloads the skill, calculates the hash, and updates the config.
+	// If saveConfig is true, it also saves the configuration file.
+	// This is useful when you want to add a skill to the config and install it in one operation.
+	InstallSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) error
 
 	// Update updates the specified skill. If skillName is empty, updates all skills.
 	Update(ctx context.Context, skillName string) (*UpdateResult, error)
@@ -85,8 +92,7 @@ func (s *skillManagerImpl) selectPackageManager(sourceType string) (port.Package
 
 // Install installs the specified skill.
 // If skillName is empty, it installs all skills from the configuration.
-// This is a placeholder implementation for task 6.1.
-// Full implementation will be provided in task 6.2.
+// Multiple skills are installed concurrently for better performance.
 // Requirements: 6.1, 6.2
 func (s *skillManagerImpl) Install(ctx context.Context, skillName string) error {
 	// Load configuration (Requirement 6.2)
@@ -110,63 +116,86 @@ func (s *skillManagerImpl) Install(ctx context.Context, skillName string) error 
 		skillsToInstall = []*Skill{skill}
 	}
 
-	// Install each skill
+	// Install skills concurrently using errgroup
+	eg, egCtx := errgroup.WithContext(ctx)
 	for _, skill := range skillsToInstall {
-		if err := s.installSingleSkill(ctx, config, skill); err != nil {
-			return err
-		}
+		eg.Go(func() error {
+			return s.InstallSingleSkill(egCtx, config, skill, false)
+		})
+	}
+
+	// Wait for all installations to complete
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+
+	// Save configuration once after all skills are installed
+	if err := s.configManager.Save(ctx, config); err != nil {
+		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
 	return nil
 }
 
-// copySkillToTargets copies a skill to all install target directories.
+// copySkillToTargets copies a skill to all install target directories concurrently.
 // It creates missing directories automatically and handles errors appropriately.
 // Requirements: 3.4, 4.4, 6.6, 10.2, 10.5, 12.2, 12.3
 func (s *skillManagerImpl) copySkillToTargets(sourcePath, skillName string, installTargets []string) error {
+	var eg errgroup.Group
+
 	for _, target := range installTargets {
-		// Create skill directory in target (Requirement 6.6)
-		skillDir := target + "/" + skillName
-		
-		// Remove existing skill directory if it exists
-		if err := os.RemoveAll(skillDir); err != nil {
-			return fmt.Errorf("failed to remove existing skill directory at %s: %w", skillDir, err)
-		}
+		eg.Go(func() error {
+			// Create skill directory in target (Requirement 6.6)
+			skillDir := target + "/" + skillName
 
-		// Create parent directory if it doesn't exist (Requirement 6.6)
-		if err := os.MkdirAll(target, installDirMode); err != nil {
-			return fmt.Errorf("failed to create install target directory %s: %w", target, err)
-		}
+			// Remove existing skill directory if it exists
+			if err := os.RemoveAll(skillDir); err != nil {
+				return fmt.Errorf("failed to remove existing skill directory at %s: %w", skillDir, err)
+			}
 
-		// Copy skill directory
-		if err := copyDir(sourcePath, skillDir); err != nil {
-			return fmt.Errorf("failed to copy skill to %s: %w", skillDir, err)
-		}
+			// Create parent directory if it doesn't exist (Requirement 6.6)
+			if err := os.MkdirAll(target, installDirMode); err != nil {
+				return fmt.Errorf("failed to create install target directory %s: %w", target, err)
+			}
+
+			// Copy skill directory
+			if err := copyDir(sourcePath, skillDir); err != nil {
+				return fmt.Errorf("failed to copy skill to %s: %w", skillDir, err)
+			}
+
+			return nil
+		})
 	}
 
-	return nil
+	return eg.Wait()
 }
 
-// verifyInstalledSkill verifies the hash of an installed skill in all target directories.
+// verifyInstalledSkill verifies the hash of an installed skill in all target directories concurrently.
 // It returns an error if any verification fails.
 // Requirements: 6.4, 6.5
 func (s *skillManagerImpl) verifyInstalledSkill(ctx context.Context, skill *Skill, installTargets []string) error {
-	for _, target := range installTargets {
-		skillDir := target + "/" + skill.Name
-		
-		// Calculate hash of installed skill
-		hashResult, err := s.hashService.CalculateHash(ctx, skillDir)
-		if err != nil {
-			return fmt.Errorf("failed to calculate hash for verification in %s: %w", skillDir, err)
-		}
+	eg, egCtx := errgroup.WithContext(ctx)
 
-		// Compare with expected hash
-		if hashResult.Value != skill.HashValue {
-			return fmt.Errorf("hash mismatch in %s: expected %s, got %s", skillDir, skill.HashValue, hashResult.Value)
-		}
+	for _, target := range installTargets {
+		eg.Go(func() error {
+			skillDir := target + "/" + skill.Name
+
+			// Calculate hash of installed skill
+			hashResult, err := s.hashService.CalculateHash(egCtx, skillDir)
+			if err != nil {
+				return fmt.Errorf("failed to calculate hash for verification in %s: %w", skillDir, err)
+			}
+
+			// Compare with expected hash
+			if hashResult.Value != skill.HashValue {
+				return fmt.Errorf("hash mismatch in %s: expected %s, got %s", skillDir, skill.HashValue, hashResult.Value)
+			}
+
+			return nil
+		})
 	}
 
-	return nil
+	return eg.Wait()
 }
 
 // copyDir recursively copies a directory from src to dst.
@@ -232,9 +261,11 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
-// installSingleSkill installs a single skill.
+// InstallSingleSkill installs a single skill.
+// If saveConfig is true, saves the configuration after updating skill metadata.
+// This method is public to allow external callers (like add command) to install a single skill.
 // Requirements: 3.3, 3.4, 4.3, 4.4, 5.3, 6.2, 6.4, 6.5, 6.6, 10.2, 10.5, 12.1, 12.2, 12.3
-func (s *skillManagerImpl) installSingleSkill(ctx context.Context, config *Config, skill *Skill) error {
+func (s *skillManagerImpl) InstallSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) error {
 	// Progress information (Requirement 12.1)
 	fmt.Printf("Installing skill '%s' from %s...\n", skill.Name, skill.Source)
 
@@ -285,9 +316,11 @@ func (s *skillManagerImpl) installSingleSkill(ctx context.Context, config *Confi
 	skill.HashAlgo = hashResult.Algorithm
 	skill.HashValue = hashResult.Value
 
-	// Save updated configuration (Requirement 5.3)
-	if err := s.configManager.Save(ctx, config); err != nil {
-		return fmt.Errorf("failed to save configuration after hash calculation: %w", err)
+	// Save updated configuration if requested (Requirement 5.3)
+	if saveConfig {
+		if err := s.configManager.Save(ctx, config); err != nil {
+			return fmt.Errorf("failed to save configuration after hash calculation: %w", err)
+		}
 	}
 
 	// Get install targets (Requirement 6.2)
@@ -338,25 +371,41 @@ func (s *skillManagerImpl) Update(ctx context.Context, skillName string) (*Updat
 		skillsToUpdate = []*Skill{skill}
 	}
 
-	// Update each skill
-	var lastResult *UpdateResult
-	for _, skill := range skillsToUpdate {
-		result, err := s.updateSingleSkill(ctx, config, skill)
-		if err != nil {
-			return nil, err
-		}
-		lastResult = result
+	// Update skills concurrently using errgroup
+	results := make([]*UpdateResult, len(skillsToUpdate))
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	for i, skill := range skillsToUpdate {
+		eg.Go(func() error {
+			result, err := s.updateSingleSkill(egCtx, config, skill, false)
+			if err != nil {
+				return err
+			}
+			results[i] = result
+			return nil
+		})
+	}
+
+	// Wait for all updates to complete
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+
+	// Save configuration once after all skills are updated
+	if err := s.configManager.Save(ctx, config); err != nil {
+		return nil, fmt.Errorf("failed to save configuration: %w", err)
 	}
 
 	// Return the last update result
 	// For single skill update, this is the result for that skill
 	// For all skills update, this is the result for the last skill
-	return lastResult, nil
+	return results[len(results)-1], nil
 }
 
 // updateSingleSkill updates a single skill to the latest version.
+// If saveConfig is true, saves the configuration after updating skill metadata.
 // Requirements: 5.3, 7.1, 7.2, 7.5, 7.6, 12.1, 12.2, 12.3
-func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config, skill *Skill) (*UpdateResult, error) {
+func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) (*UpdateResult, error) {
 	// Record old version (Requirement 7.6)
 	oldVersion := skill.Version
 
@@ -425,10 +474,12 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	skill.HashAlgo = hashResult.Algorithm
 	skill.HashValue = hashResult.Value
 
-	// Save updated configuration (Requirement 5.3, 7.5)
-	if err := s.configManager.Save(ctx, config); err != nil {
-		// Filesystem error handling (Requirement 12.2, 12.3)
-		return nil, fmt.Errorf("failed to save configuration after update: %w. Check file permissions", err)
+	// Save updated configuration if requested (Requirement 5.3, 7.5)
+	if saveConfig {
+		if err := s.configManager.Save(ctx, config); err != nil {
+			// Filesystem error handling (Requirement 12.2, 12.3)
+			return nil, fmt.Errorf("failed to save configuration after update: %w. Check file permissions", err)
+		}
 	}
 
 	// Get install targets

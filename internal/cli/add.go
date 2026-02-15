@@ -34,14 +34,27 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		}
 	}
 
-	return c.run(defaultConfigPath, verbose, true)
+	return c.run(defaultConfigPath, verbose)
 }
 
 // run is the internal implementation that can be called from tests with custom parameters
-// This method adds a skill to the configuration file.
-// If skipInstall is false, it will also install the skill after adding to configuration.
+// This method adds a skill to the configuration file and installs it.
 // Requirements: 6.3, 12.1, 12.2, 12.3
-func (c *AddCmd) run(configPath string, verbose bool, install bool) error {
+func (c *AddCmd) run(configPath string, verbose bool) error {
+	// Create default dependencies
+	hashService := service.NewDirhash()
+	packageManagers := []port.PackageManager{
+		pkgmanager.NewGit(),
+		pkgmanager.NewGoMod(),
+	}
+
+	return c.runWithDeps(configPath, verbose, hashService, packageManagers)
+}
+
+// runWithDeps is the internal implementation with dependency injection for testing
+// This method adds a skill to the configuration file and installs it.
+// Requirements: 6.3, 12.1, 12.2, 12.3
+func (c *AddCmd) runWithDeps(configPath string, verbose bool, hashService port.HashService, packageManagers []port.PackageManager) error {
 	// Create logger with verbose setting (requirement 12.4)
 	logger := NewLogger(verbose)
 
@@ -84,8 +97,13 @@ func (c *AddCmd) run(configPath string, verbose bool, install bool) error {
 
 	logger.Verbose("Created skill entry: %+v", skill)
 
-	// Add skill to configuration (requirement 6.3)
-	if err := configManager.AddSkill(context.Background(), skill); err != nil {
+	// Install the skill after adding to configuration
+	logger.Info("Installing skill '%s'", c.Name)
+	logger.Verbose("Starting installation process")
+
+	// Add skill to config in memory (requirement 6.3)
+	config, err := configManager.AddSkillToConfig(context.Background(), skill)
+	if err != nil {
 		// Handle different error types with appropriate messages (requirements 12.2, 12.3)
 		if errors.Is(err, domain.ErrConfigNotFound) {
 			// Configuration file not found
@@ -114,40 +132,20 @@ func (c *AddCmd) run(configPath string, verbose bool, install bool) error {
 		return err
 	}
 
-	// Success message (requirement 12.1)
-	logger.Info("Successfully added skill '%s' to configuration", c.Name)
+	// Create SkillManager
+	skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
 
-	// Install the skill immediately after adding to configuration if requested
-	if install {
-		logger.Info("Installing skill '%s'", c.Name)
-		logger.Verbose("Starting installation process")
-
-		// Create HashService
-		hashService := service.NewDirhash()
-
-		// Create PackageManagers
-		packageManagers := []port.PackageManager{
-			pkgmanager.NewGit(),
-			pkgmanager.NewGoMod(),
-		}
-
-		// Create SkillManager
-		skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
-
-		// Install the specific skill
-		if err := skillManager.Install(context.Background(), c.Name); err != nil {
-			// Handle installation errors (requirements 12.2, 12.3)
-			logger.Error("Failed to install skill '%s': %v", c.Name, err)
-			logger.Error("The skill has been added to configuration but installation failed")
-			logger.Error("You can retry installation with 'skills-pkg install %s'", c.Name)
-			return fmt.Errorf("installation failed: %w", err)
-		}
-
-		// Installation success message (requirement 12.1)
-		logger.Info("Successfully installed skill '%s'", c.Name)
-	} else {
-		logger.Info("Use 'skills-pkg install %s' to install the skill", c.Name)
+	// Install the specific skill (this will save the configuration with hash values)
+	if err := skillManager.InstallSingleSkill(context.Background(), config, skill, true); err != nil {
+		// Handle installation errors (requirements 12.2, 12.3)
+		logger.Error("Failed to install skill '%s': %v", c.Name, err)
+		logger.Error("The skill has NOT been added to configuration due to installation failure")
+		logger.Error("Please check the error and try again")
+		return fmt.Errorf("installation failed: %w", err)
 	}
+
+	// Installation success message (requirement 12.1)
+	logger.Info("Successfully installed skill '%s'", c.Name)
 
 	return nil
 }
