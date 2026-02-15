@@ -280,7 +280,8 @@ func (s *skillManagerImpl) installSingleSkill(ctx context.Context, config *Confi
 		return fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
 	}
 
-	// Update skill with hash values
+	// Update skill with hash values and actual version
+	skill.Version = downloadResult.Version
 	skill.HashAlgo = hashResult.Algorithm
 	skill.HashValue = hashResult.Value
 
@@ -420,7 +421,7 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	}
 
 	// Update skill with new version and hash (Requirement 7.5)
-	skill.Version = latestVersion
+	skill.Version = downloadResult.Version
 	skill.HashAlgo = hashResult.Algorithm
 	skill.HashValue = hashResult.Value
 
@@ -442,13 +443,13 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	}
 
 	// Display update information (Requirement 7.6, 12.1)
-	fmt.Printf("Successfully updated skill '%s' from %s to %s\n", skill.Name, oldVersion, latestVersion)
+	fmt.Printf("Successfully updated skill '%s' from %s to %s\n", skill.Name, oldVersion, downloadResult.Version)
 
 	// Return update result (Requirement 7.6)
 	return &UpdateResult{
 		SkillName:  skill.Name,
 		OldVersion: oldVersion,
-		NewVersion: latestVersion,
+		NewVersion: downloadResult.Version,
 	}, nil
 }
 

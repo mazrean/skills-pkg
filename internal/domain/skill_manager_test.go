@@ -313,6 +313,10 @@ func TestInstall_SingleSkill(t *testing.T) {
 		t.Errorf("Expected hash value 'abcd1234', got '%s'", skill.HashValue)
 	}
 
+	if skill.Version != "v1.0.0" {
+		t.Errorf("Expected version 'v1.0.0', got '%s'", skill.Version)
+	}
+
 	// Verify skill was installed to target directory
 	if _, err := os.Stat(installDir + "/test-skill"); os.IsNotExist(err) {
 		t.Error("Skill was not installed to target directory")
@@ -409,6 +413,11 @@ func TestInstall_AllSkills(t *testing.T) {
 		t.Fatalf("Failed to load updated config: %v", err)
 	}
 
+	expectedVersions := map[string]string{
+		"skill1": "v1.0.0",
+		"skill2": "v2.0.0",
+	}
+
 	for _, skillName := range []string{"skill1", "skill2"} {
 		skill := updatedConfig.FindSkillByName(skillName)
 		if skill == nil {
@@ -417,6 +426,10 @@ func TestInstall_AllSkills(t *testing.T) {
 
 		if skill.HashValue == "" {
 			t.Errorf("Hash value for skill '%s' is empty", skillName)
+		}
+
+		if skill.Version != expectedVersions[skillName] {
+			t.Errorf("Expected version '%s' for skill '%s', got '%s'", expectedVersions[skillName], skillName, skill.Version)
 		}
 	}
 }
