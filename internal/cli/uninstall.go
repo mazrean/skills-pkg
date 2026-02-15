@@ -13,7 +13,7 @@ import (
 
 // UninstallCmd represents the uninstall command
 type UninstallCmd struct {
-	SkillName string `arg:"" help:"Skill name to uninstall"`
+	SkillName string `arg:"" help:"Name of the skill to remove from configuration and all install targets"`
 }
 
 // Run executes the uninstall command

@@ -15,7 +15,7 @@ import (
 // AddCmd represents the add command
 type AddCmd struct {
 	Name    string `arg:"" help:"Skill name"`
-	Source  string `default:"git" help:"Source type (git, go-module)"`
+	Source  string `default:"git" enum:"git,go-module" help:"Source type"`
 	URL     string `required:"" help:"Source URL (Git URL or Go module path)"`
 	Version string `default:"latest" help:"Version (tag, commit hash, or semantic version)"`
 	SubDir  string `help:"Subdirectory within the source to extract (default: skills/{name})"`
@@ -61,17 +61,7 @@ func (c *AddCmd) runWithDeps(configPath string, verbose bool, hashService port.H
 	logger.Info("Adding skill '%s' to configuration", c.Name)
 	logger.Verbose("Source: %s, URL: %s, Version: %s", c.Source, c.URL, c.Version)
 
-	// Validate source type (requirement 6.3)
-	validSources := map[string]bool{
-		"git":       true,
-		"go-module": true,
-	}
-	if !validSources[c.Source] {
-		// Report invalid source type with cause and recommended action (requirements 12.2, 12.3)
-		logger.Error("Invalid source type '%s'", c.Source)
-		logger.Error("Supported source types: git, go-module")
-		return fmt.Errorf("%w: %s. Supported types: git, go-module", domain.ErrInvalidSource, c.Source)
-	}
+	// Note: Source type validation is now handled by kong's enum tag (requirement 6.3)
 
 	// Create ConfigManager
 	configManager := domain.NewConfigManager(configPath)

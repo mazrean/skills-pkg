@@ -20,9 +20,9 @@ const (
 // InitCmd represents the init command
 // Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 12.1, 12.2, 12.3, 12.4
 type InitCmd struct {
-	Agent      []string `help:"Agent name (e.g., 'claude', 'codex', 'cursor', 'copilot', 'goose', 'opencode', 'gemini', 'amp', 'factory') to use default directory (can be specified multiple times)" short:"a"`
+	Agent      []string `help:"Agent name to use default directory (can be specified multiple times)" short:"a" enum:"claude,codex,cursor,copilot,goose,opencode,gemini,amp,factory"`
 	InstallDir []string `help:"Custom install directory (can be specified multiple times)" short:"d"`
-	Global     bool     `help:"Use user-level directory instead of project-level directory (requires --agent)" short:"g"`
+	Global     bool     `help:"Use user-level directory instead of project-level directory (requires --agent)" short:"g" default:"false"`
 }
 
 // Run executes the init command
