@@ -264,8 +264,8 @@ func (s *skillManagerImpl) installSingleSkill(ctx context.Context, config *Confi
 		sourcePath = downloadResult.Path + "/" + skill.SubDir
 
 		// Verify that the subdirectory exists
-		if _, err := os.Stat(sourcePath); err != nil {
-			if os.IsNotExist(err) {
+		if _, statErr := os.Stat(sourcePath); statErr != nil {
+			if os.IsNotExist(statErr) {
 				return fmt.Errorf("subdirectory '%s' not found in downloaded skill '%s'. Available content is in: %s", skill.SubDir, skill.Name, downloadResult.Path)
 			}
 			return fmt.Errorf("failed to access subdirectory '%s' in skill '%s': %w", skill.SubDir, skill.Name, err)
@@ -403,8 +403,8 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		sourcePath = downloadResult.Path + "/" + skill.SubDir
 
 		// Verify that the subdirectory exists
-		if _, err := os.Stat(sourcePath); err != nil {
-			if os.IsNotExist(err) {
+		if _, statErr := os.Stat(sourcePath); statErr != nil {
+			if os.IsNotExist(statErr) {
 				return nil, fmt.Errorf("subdirectory '%s' not found in downloaded skill '%s'. Available content is in: %s", skill.SubDir, skill.Name, downloadResult.Path)
 			}
 			return nil, fmt.Errorf("failed to access subdirectory '%s' in skill '%s': %w", skill.SubDir, skill.Name, err)
