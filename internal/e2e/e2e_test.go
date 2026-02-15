@@ -43,158 +43,125 @@ func TestE2ECompleteFlow(t *testing.T) {
 	installDir1 := filepath.Join(workspaceDir, "agent1", "skills")
 	installDir2 := filepath.Join(workspaceDir, "agent2", "skills")
 
-	// Test: Step 1 - Initialize project
-	t.Run("init", func(t *testing.T) {
-		ctx := context.Background()
-		cmd := exec.CommandContext(ctx, binaryPath, "init",
-			"--install-dir", installDir1,
-			"--install-dir", installDir2,
-		)
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("init command failed: %v\nOutput: %s", err, output)
-		}
+	tests := []struct {
+		name           string
+		commandArgs    []string
+		validateOutput func(t *testing.T, output []byte, exitCode int)
+	}{
+		{
+			name: "init",
+			commandArgs: []string{"init",
+				"--install-dir", installDir1,
+				"--install-dir", installDir2,
+			},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+				configPath := filepath.Join(projectDir, ".skillspkg.toml")
+				if _, err := os.Stat(configPath); os.IsNotExist(err) {
+					t.Errorf("Configuration file was not created at %s", configPath)
+				}
+			},
+		},
+		{
+			name: "add",
+			commandArgs: []string{"add",
+				"test-skill",
+				"--source", "git",
+				"--url", testRepoURL,
+				"--version", "v1.0.0",
+			},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+			},
+		},
+		{
+			name:        "install",
+			commandArgs: []string{"install", "test-skill"},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+				skillPath1 := filepath.Join(installDir1, "test-skill")
+				skillPath2 := filepath.Join(installDir2, "test-skill")
 
-		// Verify exit code 0
-		if cmd.ProcessState.ExitCode() != 0 {
-			t.Errorf("Expected exit code 0, got %d", cmd.ProcessState.ExitCode())
-		}
+				if _, err := os.Stat(skillPath1); os.IsNotExist(err) {
+					t.Errorf("Skill was not installed in %s", skillPath1)
+				}
+				if _, err := os.Stat(skillPath2); os.IsNotExist(err) {
+					t.Errorf("Skill was not installed in %s", skillPath2)
+				}
+			},
+		},
+		{
+			name:        "verify",
+			commandArgs: []string{"verify"},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+				outputStr := string(output)
+				hasSuccessIndicator := strings.Contains(outputStr, "Successful:") ||
+					strings.Contains(outputStr, "成功") ||
+					strings.Contains(strings.ToLower(outputStr), "success")
+				if !hasSuccessIndicator {
+					t.Errorf("Expected success message in verify output, got: %s", outputStr)
+				}
+				if strings.Contains(outputStr, "Failed: 0") == false &&
+					strings.Contains(outputStr, "失敗: 0") == false {
+					t.Errorf("Expected no failures in verify output, got: %s", outputStr)
+				}
+			},
+		},
+		{
+			name:        "list",
+			commandArgs: []string{"list"},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+				outputStr := string(output)
+				if !strings.Contains(outputStr, "test-skill") {
+					t.Errorf("Expected skill name in list output, got: %s", outputStr)
+				}
+			},
+		},
+		{
+			name:        "uninstall",
+			commandArgs: []string{"uninstall", "test-skill"},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+				skillPath1 := filepath.Join(installDir1, "test-skill")
+				skillPath2 := filepath.Join(installDir2, "test-skill")
 
-		// Verify .skillspkg.toml was created
-		configPath := filepath.Join(projectDir, ".skillspkg.toml")
-		if _, err := os.Stat(configPath); os.IsNotExist(err) {
-			t.Errorf("Configuration file was not created at %s", configPath)
-		}
-	})
+				if _, err := os.Stat(skillPath1); !os.IsNotExist(err) {
+					t.Errorf("Skill was not removed from %s", skillPath1)
+				}
+				if _, err := os.Stat(skillPath2); !os.IsNotExist(err) {
+					t.Errorf("Skill was not removed from %s", skillPath2)
+				}
+			},
+		},
+	}
 
-	// Test: Step 2 - Add a skill
-	t.Run("add", func(t *testing.T) {
-		ctx := context.Background()
-		cmd := exec.CommandContext(ctx, binaryPath, "add",
-			"test-skill",
-			"--source", "git",
-			"--url", testRepoURL,
-			"--version", "v1.0.0",
-		)
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("add command failed: %v\nOutput: %s", err, output)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			cmd := exec.CommandContext(ctx, binaryPath, tt.commandArgs...)
+			cmd.Dir = projectDir
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("%s command failed: %v\nOutput: %s", tt.name, err, output)
+			}
 
-		// Verify exit code 0
-		if cmd.ProcessState.ExitCode() != 0 {
-			t.Errorf("Expected exit code 0, got %d", cmd.ProcessState.ExitCode())
-		}
-	})
-
-	// Test: Step 3 - Install the skill
-	t.Run("install", func(t *testing.T) {
-		ctx := context.Background()
-		cmd := exec.CommandContext(ctx, binaryPath, "install", "test-skill")
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("install command failed: %v\nOutput: %s", err, output)
-		}
-
-		// Verify exit code 0
-		if cmd.ProcessState.ExitCode() != 0 {
-			t.Errorf("Expected exit code 0, got %d", cmd.ProcessState.ExitCode())
-		}
-
-		// Verify skill was installed in both directories
-		skillPath1 := filepath.Join(installDir1, "test-skill")
-		skillPath2 := filepath.Join(installDir2, "test-skill")
-
-		if _, err := os.Stat(skillPath1); os.IsNotExist(err) {
-			t.Errorf("Skill was not installed in %s", skillPath1)
-		}
-		if _, err := os.Stat(skillPath2); os.IsNotExist(err) {
-			t.Errorf("Skill was not installed in %s", skillPath2)
-		}
-	})
-
-	// Test: Step 4 - Verify skills
-	t.Run("verify", func(t *testing.T) {
-		ctx := context.Background()
-		cmd := exec.CommandContext(ctx, binaryPath, "verify")
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("verify command failed: %v\nOutput: %s", err, output)
-		}
-
-		// Verify exit code 0
-		if cmd.ProcessState.ExitCode() != 0 {
-			t.Errorf("Expected exit code 0, got %d", cmd.ProcessState.ExitCode())
-		}
-
-		// Verify output contains success message
-		outputStr := string(output)
-		// Check for either "Successful" count or "成功" (Japanese)
-		hasSuccessIndicator := strings.Contains(outputStr, "Successful:") ||
-			strings.Contains(outputStr, "成功") ||
-			strings.Contains(strings.ToLower(outputStr), "success")
-		if !hasSuccessIndicator {
-			t.Errorf("Expected success message in verify output, got: %s", outputStr)
-		}
-		// Verify no failures
-		if strings.Contains(outputStr, "Failed: 0") == false &&
-			strings.Contains(outputStr, "失敗: 0") == false {
-			t.Errorf("Expected no failures in verify output, got: %s", outputStr)
-		}
-	})
-
-	// Test: Step 5 - List skills
-	t.Run("list", func(t *testing.T) {
-		ctx := context.Background()
-		cmd := exec.CommandContext(ctx, binaryPath, "list")
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("list command failed: %v\nOutput: %s", err, output)
-		}
-
-		// Verify exit code 0
-		if cmd.ProcessState.ExitCode() != 0 {
-			t.Errorf("Expected exit code 0, got %d", cmd.ProcessState.ExitCode())
-		}
-
-		// Verify output contains skill name
-		outputStr := string(output)
-		if !strings.Contains(outputStr, "test-skill") {
-			t.Errorf("Expected skill name in list output, got: %s", outputStr)
-		}
-	})
-
-	// Test: Step 6 - Uninstall the skill
-	t.Run("uninstall", func(t *testing.T) {
-		ctx := context.Background()
-		cmd := exec.CommandContext(ctx, binaryPath, "uninstall", "test-skill")
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("uninstall command failed: %v\nOutput: %s", err, output)
-		}
-
-		// Verify exit code 0
-		if cmd.ProcessState.ExitCode() != 0 {
-			t.Errorf("Expected exit code 0, got %d", cmd.ProcessState.ExitCode())
-		}
-
-		// Verify skill was removed from both directories
-		skillPath1 := filepath.Join(installDir1, "test-skill")
-		skillPath2 := filepath.Join(installDir2, "test-skill")
-
-		if _, err := os.Stat(skillPath1); !os.IsNotExist(err) {
-			t.Errorf("Skill was not removed from %s", skillPath1)
-		}
-		if _, err := os.Stat(skillPath2); !os.IsNotExist(err) {
-			t.Errorf("Skill was not removed from %s", skillPath2)
-		}
-	})
+			tt.validateOutput(t, output, cmd.ProcessState.ExitCode())
+		})
+	}
 }
 
 // TestE2EMultipleAgentInstallation tests installing skills to multiple agent directories
@@ -226,63 +193,83 @@ func TestE2EMultipleAgentInstallation(t *testing.T) {
 		filepath.Join(workspaceDir, "custom", "skills"),
 	}
 
-	// Test: Initialize with multiple agent directories
-	t.Run("init_multiple_agents", func(t *testing.T) {
-		ctx := context.Background()
-		args := []string{"init"}
-		for _, dir := range agentDirs {
-			args = append(args, "--install-dir", dir)
-		}
+	tests := []struct {
+		name           string
+		setupFunc      func(t *testing.T)
+		commandFunc    func(ctx context.Context) *exec.Cmd
+		validateOutput func(t *testing.T, output []byte, exitCode int)
+	}{
+		{
+			name:      "init_multiple_agents",
+			setupFunc: func(t *testing.T) {},
+			commandFunc: func(ctx context.Context) *exec.Cmd {
+				args := []string{"init"}
+				for _, dir := range agentDirs {
+					args = append(args, "--install-dir", dir)
+				}
+				cmd := exec.CommandContext(ctx, binaryPath, args...)
+				cmd.Dir = projectDir
+				return cmd
+			},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+			},
+		},
+		{
+			name: "add_and_install",
+			setupFunc: func(t *testing.T) {
+				ctx := context.Background()
+				cmd := exec.CommandContext(ctx, binaryPath, "add",
+					"multi-agent-skill",
+					"--source", "git",
+					"--url", testRepoURL,
+					"--version", "v1.0.0",
+				)
+				cmd.Dir = projectDir
+				if output, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("add command failed: %v\nOutput: %s", err, output)
+				}
+			},
+			commandFunc: func(ctx context.Context) *exec.Cmd {
+				cmd := exec.CommandContext(ctx, binaryPath, "install")
+				cmd.Dir = projectDir
+				return cmd
+			},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+				for _, agentDir := range agentDirs {
+					skillPath := filepath.Join(agentDir, "multi-agent-skill")
+					if _, err := os.Stat(skillPath); os.IsNotExist(err) {
+						t.Errorf("Skill was not installed in %s", agentDir)
+					}
 
-		cmd := exec.CommandContext(ctx, binaryPath, args...)
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("init command failed: %v\nOutput: %s", err, output)
-		}
+					skillMdPath := filepath.Join(skillPath, "SKILL.md")
+					if _, err := os.Stat(skillMdPath); os.IsNotExist(err) {
+						t.Errorf("SKILL.md was not found in %s", skillPath)
+					}
+				}
+			},
+		},
+	}
 
-		if cmd.ProcessState.ExitCode() != 0 {
-			t.Errorf("Expected exit code 0, got %d", cmd.ProcessState.ExitCode())
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupFunc(t)
 
-	// Test: Add and install skill
-	t.Run("add_and_install", func(t *testing.T) {
-		ctx := context.Background()
-		// Add skill
-		cmd := exec.CommandContext(ctx, binaryPath, "add",
-			"multi-agent-skill",
-			"--source", "git",
-			"--url", testRepoURL,
-			"--version", "v1.0.0",
-		)
-		cmd.Dir = projectDir
-		if output, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("add command failed: %v\nOutput: %s", err, output)
-		}
-
-		// Install skill
-		cmd = exec.CommandContext(ctx, binaryPath, "install")
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("install command failed: %v\nOutput: %s", err, output)
-		}
-
-		// Verify skill is installed in all agent directories
-		for _, agentDir := range agentDirs {
-			skillPath := filepath.Join(agentDir, "multi-agent-skill")
-			if _, err := os.Stat(skillPath); os.IsNotExist(err) {
-				t.Errorf("Skill was not installed in %s", agentDir)
+			ctx := context.Background()
+			cmd := tt.commandFunc(ctx)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("%s command failed: %v\nOutput: %s", tt.name, err, output)
 			}
 
-			// Verify SKILL.md exists
-			skillMdPath := filepath.Join(skillPath, "SKILL.md")
-			if _, err := os.Stat(skillMdPath); os.IsNotExist(err) {
-				t.Errorf("SKILL.md was not found in %s", skillPath)
-			}
-		}
-	})
+			tt.validateOutput(t, output, cmd.ProcessState.ExitCode())
+		})
+	}
 }
 
 // TestE2EHashMismatchWarning tests that hash mismatches are properly detected and warned
@@ -503,50 +490,54 @@ func TestE2EVerboseMode(t *testing.T) {
 	binaryPath := buildCLIBinary(t, workspaceDir)
 	defer func() { _ = os.Remove(binaryPath) }()
 
-	// Test: Run init with verbose flag
-	t.Run("verbose_init", func(t *testing.T) {
-		ctx := context.Background()
-		cmd := exec.CommandContext(ctx, binaryPath, "--verbose", "init")
-		cmd.Dir = projectDir
-		var stdout, stderr bytes.Buffer
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-		err := cmd.Run()
-		if err != nil {
-			t.Fatalf("init command failed: %v\nStderr: %s", err, stderr.String())
-		}
+	tests := []struct {
+		name            string
+		commandArgs     []string
+		validateOutput  func(t *testing.T, output string)
+		requireInitFile bool
+	}{
+		{
+			name:            "verbose_init",
+			commandArgs:     []string{"--verbose", "init"},
+			requireInitFile: false,
+			validateOutput: func(t *testing.T, output string) {
+				if len(output) == 0 {
+					t.Error("Expected verbose output, got none")
+				}
+				if !strings.Contains(strings.ToLower(output), ".skillspkg.toml") {
+					t.Errorf("Expected verbose output to contain configuration details, got: %s", output)
+				}
+			},
+		},
+		{
+			name:            "verbose_list",
+			commandArgs:     []string{"--verbose", "list"},
+			requireInitFile: true,
+			validateOutput: func(t *testing.T, output string) {
+				if len(output) == 0 {
+					t.Error("Expected verbose output, got none")
+				}
+			},
+		},
+	}
 
-		// Verbose output should contain debug information
-		output := stdout.String() + stderr.String()
-		if len(output) == 0 {
-			t.Error("Expected verbose output, got none")
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			cmd := exec.CommandContext(ctx, binaryPath, tt.commandArgs...)
+			cmd.Dir = projectDir
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+			err := cmd.Run()
+			if err != nil {
+				t.Fatalf("%s command failed: %v\nStderr: %s", tt.name, err, stderr.String())
+			}
 
-		// Check for verbose indicators (e.g., file paths, detailed messages)
-		if !strings.Contains(strings.ToLower(output), ".skillspkg.toml") {
-			t.Errorf("Expected verbose output to contain configuration details, got: %s", output)
-		}
-	})
-
-	// Test: Run list with verbose flag
-	t.Run("verbose_list", func(t *testing.T) {
-		ctx := context.Background()
-		cmd := exec.CommandContext(ctx, binaryPath, "--verbose", "list")
-		cmd.Dir = projectDir
-		var stdout, stderr bytes.Buffer
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-		err := cmd.Run()
-		if err != nil {
-			t.Fatalf("list command failed: %v\nStderr: %s", err, stderr.String())
-		}
-
-		// Verbose output should be present
-		output := stdout.String() + stderr.String()
-		if len(output) == 0 {
-			t.Error("Expected verbose output, got none")
-		}
-	})
+			output := stdout.String() + stderr.String()
+			tt.validateOutput(t, output)
+		})
+	}
 }
 
 // TestE2ERealRepository tests installing a skill from the actual vercel-labs/agent-skills repository
@@ -575,7 +566,7 @@ func TestE2ERealRepository(t *testing.T) {
 	// Setup: Define install target
 	installDir := filepath.Join(workspaceDir, "skills")
 
-	// Test: Initialize project
+	// Initialize project
 	ctx := context.Background()
 	cmd := exec.CommandContext(ctx, binaryPath, "init", "--install-dir", installDir)
 	cmd.Dir = projectDir
@@ -583,72 +574,76 @@ func TestE2ERealRepository(t *testing.T) {
 		t.Fatalf("init command failed: %v\nOutput: %s", err, output)
 	}
 
-	// Test: Add skill from vercel-labs/agent-skills repository
-	// Using the claude.ai/vercel-deploy-claimable skill as an example
-	t.Run("add_real_skill", func(t *testing.T) {
-		cmd := exec.CommandContext(ctx, binaryPath, "add",
-			"vercel-deploy",
-			"--source", "git",
-			"--url", "https://github.com/vercel-labs/agent-skills.git",
-			"--version", "main",
-			"--sub-dir", "skills/claude.ai/vercel-deploy-claimable",
-		)
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("add command failed: %v\nOutput: %s", err, output)
-		}
+	tests := []struct {
+		name           string
+		commandArgs    []string
+		validateOutput func(t *testing.T, output []byte, exitCode int)
+	}{
+		{
+			name: "add_real_skill",
+			commandArgs: []string{"add",
+				"vercel-deploy",
+				"--source", "git",
+				"--url", "https://github.com/vercel-labs/agent-skills.git",
+				"--version", "main",
+				"--sub-dir", "skills/claude.ai/vercel-deploy-claimable",
+			},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+			},
+		},
+		{
+			name:        "install_real_skill",
+			commandArgs: []string{"install", "vercel-deploy"},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+				skillPath := filepath.Join(installDir, "vercel-deploy")
+				if _, err := os.Stat(skillPath); os.IsNotExist(err) {
+					t.Errorf("Skill was not installed at %s", skillPath)
+				}
 
-		if cmd.ProcessState.ExitCode() != 0 {
-			t.Errorf("Expected exit code 0, got %d", cmd.ProcessState.ExitCode())
-		}
-	})
+				skillMdPath := filepath.Join(skillPath, "SKILL.md")
+				if _, err := os.Stat(skillMdPath); os.IsNotExist(err) {
+					t.Errorf("SKILL.md was not found in installed skill at %s", skillMdPath)
+				}
 
-	// Test: Install the skill
-	t.Run("install_real_skill", func(t *testing.T) {
-		cmd := exec.CommandContext(ctx, binaryPath, "install", "vercel-deploy")
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("install command failed: %v\nOutput: %s", err, output)
-		}
+				topReadme := filepath.Join(skillPath, "README.md")
+				if _, err := os.Stat(topReadme); !os.IsNotExist(err) {
+					t.Errorf("Top-level README.md should not exist in skill directory (found at %s), only the subdirectory should be installed", topReadme)
+				}
+			},
+		},
+		{
+			name:        "verify_real_skill",
+			commandArgs: []string{"verify"},
+			validateOutput: func(t *testing.T, output []byte, exitCode int) {
+				if exitCode != 0 {
+					t.Errorf("Expected exit code 0, got %d", exitCode)
+				}
+				outputStr := string(output)
+				if strings.Contains(outputStr, "⚠ WARNING") || strings.Contains(outputStr, "Failed") {
+					t.Logf("Verification output: %s", outputStr)
+				}
+			},
+		},
+	}
 
-		// Verify skill was installed
-		skillPath := filepath.Join(installDir, "vercel-deploy")
-		if _, err := os.Stat(skillPath); os.IsNotExist(err) {
-			t.Errorf("Skill was not installed at %s", skillPath)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := exec.CommandContext(ctx, binaryPath, tt.commandArgs...)
+			cmd.Dir = projectDir
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("%s command failed: %v\nOutput: %s", tt.name, err, output)
+			}
 
-		// Verify SKILL.md exists in the installed skill
-		skillMdPath := filepath.Join(skillPath, "SKILL.md")
-		if _, err := os.Stat(skillMdPath); os.IsNotExist(err) {
-			t.Errorf("SKILL.md was not found in installed skill at %s", skillMdPath)
-		}
-
-		// Verify that only the subdirectory was installed (not the entire repo)
-		// The installed directory should NOT contain the top-level README or other skills
-		topReadme := filepath.Join(skillPath, "README.md")
-		if _, err := os.Stat(topReadme); !os.IsNotExist(err) {
-			t.Errorf("Top-level README.md should not exist in skill directory (found at %s), only the subdirectory should be installed", topReadme)
-		}
-	})
-
-	// Test: Verify the installed skill
-	t.Run("verify_real_skill", func(t *testing.T) {
-		cmd := exec.CommandContext(ctx, binaryPath, "verify")
-		cmd.Dir = projectDir
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("verify command failed: %v\nOutput: %s", err, output)
-		}
-
-		// Verify output indicates success
-		outputStr := string(output)
-		if strings.Contains(outputStr, "⚠ WARNING") || strings.Contains(outputStr, "Failed") {
-			t.Logf("Verification output: %s", outputStr)
-			// Note: We log but don't fail here because network issues might cause hash mismatches
-		}
-	})
+			tt.validateOutput(t, output, cmd.ProcessState.ExitCode())
+		})
+	}
 }
 
 // Helper: createTestGitRepo creates a test Git repository with a skill
