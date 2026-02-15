@@ -3,3 +3,4 @@
 /.serena
 /.worktrees
 coverage.out
+dist/
