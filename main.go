@@ -4,11 +4,20 @@ import (
 	"os"
 
 	"github.com/alecthomas/kong"
+	"github.com/mazrean/skills-pkg/internal/cli"
 )
 
 // CLI represents the command-line interface structure
 var CLI struct {
-	// Subcommands will be added here in future tasks
+	Init      cli.InitCmd      `cmd:"" help:"Initialize project with .skillspkg.toml"`
+	Add       cli.AddCmd       `cmd:"" help:"Add a skill to configuration"`
+	Install   cli.InstallCmd   `cmd:"" help:"Install skills from configuration"`
+	Update    cli.UpdateCmd    `cmd:"" help:"Update skills to latest versions"`
+	List      cli.ListCmd      `cmd:"" help:"List installed skills"`
+	Uninstall cli.UninstallCmd `cmd:"" help:"Uninstall skills"`
+	Verify    cli.VerifyCmd    `cmd:"" help:"Verify skill integrity with hash"`
+
+	Verbose bool `help:"Enable verbose logging" short:"v" env:"SKILLSPKG_VERBOSE"`
 }
 
 // Version information (will be injected by GoReleaser via ldflags)
