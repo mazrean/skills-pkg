@@ -3,8 +3,15 @@ package domain
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"os"
 
 	"github.com/mazrean/skills-pkg/internal/port"
+)
+
+// Directory permission constants
+const (
+	installDirMode fs.FileMode = 0o755 // User: rwx, Group: rx, Others: rx
 )
 
 // SkillManager manages skill installation, updates, and removal.
@@ -82,8 +89,210 @@ func (s *skillManagerImpl) selectPackageManager(sourceType string) (port.Package
 // Full implementation will be provided in task 6.2.
 // Requirements: 6.1, 6.2
 func (s *skillManagerImpl) Install(ctx context.Context, skillName string) error {
-	// Placeholder implementation
-	// Full implementation in task 6.2
+	// Load configuration (Requirement 6.2)
+	config, err := s.configManager.Load(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Determine which skills to install (Requirements 6.1, 6.2)
+	var skillsToInstall []*Skill
+	if skillName == "" {
+		// Install all skills (Requirement 6.1)
+		skillsToInstall = config.Skills
+	} else {
+		// Install specific skill (Requirement 6.2)
+		skill := config.FindSkillByName(skillName)
+		if skill == nil {
+			// Requirement 6.3, 12.2, 12.3
+			return fmt.Errorf("%w: skill '%s' not found in configuration. Use 'skills-pkg add %s --source <type> --url <url>' to add it first", ErrSkillNotFound, skillName, skillName)
+		}
+		skillsToInstall = []*Skill{skill}
+	}
+
+	// Install each skill
+	for _, skill := range skillsToInstall {
+		if err := s.installSingleSkill(ctx, config, skill); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// copySkillToTargets copies a skill to all install target directories.
+// It creates missing directories automatically and handles errors appropriately.
+// Requirements: 3.4, 4.4, 6.6, 10.2, 10.5, 12.2, 12.3
+func (s *skillManagerImpl) copySkillToTargets(sourcePath, skillName string, installTargets []string) error {
+	for _, target := range installTargets {
+		// Create skill directory in target (Requirement 6.6)
+		skillDir := target + "/" + skillName
+		
+		// Remove existing skill directory if it exists
+		if err := os.RemoveAll(skillDir); err != nil {
+			return fmt.Errorf("failed to remove existing skill directory at %s: %w", skillDir, err)
+		}
+
+		// Create parent directory if it doesn't exist (Requirement 6.6)
+		if err := os.MkdirAll(target, installDirMode); err != nil {
+			return fmt.Errorf("failed to create install target directory %s: %w", target, err)
+		}
+
+		// Copy skill directory
+		if err := copyDir(sourcePath, skillDir); err != nil {
+			return fmt.Errorf("failed to copy skill to %s: %w", skillDir, err)
+		}
+	}
+
+	return nil
+}
+
+// verifyInstalledSkill verifies the hash of an installed skill in all target directories.
+// It returns an error if any verification fails.
+// Requirements: 6.4, 6.5
+func (s *skillManagerImpl) verifyInstalledSkill(ctx context.Context, skill *Skill, installTargets []string) error {
+	for _, target := range installTargets {
+		skillDir := target + "/" + skill.Name
+		
+		// Calculate hash of installed skill
+		hashResult, err := s.hashService.CalculateHash(ctx, skillDir)
+		if err != nil {
+			return fmt.Errorf("failed to calculate hash for verification in %s: %w", skillDir, err)
+		}
+
+		// Compare with expected hash
+		if hashResult.Value != skill.HashValue {
+			return fmt.Errorf("hash mismatch in %s: expected %s, got %s", skillDir, skill.HashValue, hashResult.Value)
+		}
+	}
+
+	return nil
+}
+
+// copyDir recursively copies a directory from src to dst.
+// It creates the destination directory if it doesn't exist.
+func copyDir(src, dst string) error {
+	// Get source directory info
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	// Create destination directory
+	if mkdirErr := os.MkdirAll(dst, srcInfo.Mode()); mkdirErr != nil {
+		return mkdirErr
+	}
+
+	// Read source directory entries
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	// Copy each entry
+	for _, entry := range entries {
+		srcPath := src + "/" + entry.Name()
+		dstPath := dst + "/" + entry.Name()
+
+		if entry.IsDir() {
+			// Recursively copy subdirectory
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			// Copy file
+			if err := copyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// copyFile copies a single file from src to dst.
+func copyFile(src, dst string) error {
+	// Read source file
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+
+	// Get source file info for permissions
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	// Write destination file
+	if err := os.WriteFile(dst, data, srcInfo.Mode()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// installSingleSkill installs a single skill.
+// Requirements: 3.3, 3.4, 4.3, 4.4, 5.3, 6.2, 6.4, 6.5, 6.6, 10.2, 10.5, 12.1, 12.2, 12.3
+func (s *skillManagerImpl) installSingleSkill(ctx context.Context, config *Config, skill *Skill) error {
+	// Progress information (Requirement 12.1)
+	fmt.Printf("Installing skill '%s' from %s...\n", skill.Name, skill.Source)
+
+	// Select appropriate package manager (Requirement 11.4)
+	pm, err := s.selectPackageManager(skill.Source)
+	if err != nil {
+		return fmt.Errorf("failed to select package manager for skill '%s': %w", skill.Name, err)
+	}
+
+	// Create source from skill
+	source := &port.Source{
+		Type: skill.Source,
+		URL:  skill.URL,
+	}
+
+	// Download skill (Requirements 3.3, 4.3)
+	fmt.Printf("Downloading skill '%s' version %s...\n", skill.Name, skill.Version)
+	downloadResult, err := pm.Download(ctx, source, skill.Version)
+	if err != nil {
+		return fmt.Errorf("failed to download skill '%s': %w. Check your network connection and source URL", skill.Name, err)
+	}
+
+	// Calculate hash (Requirement 5.3)
+	fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
+	hashResult, err := s.hashService.CalculateHash(ctx, downloadResult.Path)
+	if err != nil {
+		return fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
+	}
+
+	// Update skill with hash values
+	skill.HashAlgo = hashResult.Algorithm
+	skill.HashValue = hashResult.Value
+
+	// Save updated configuration (Requirement 5.3)
+	if err := s.configManager.Save(ctx, config); err != nil {
+		return fmt.Errorf("failed to save configuration after hash calculation: %w", err)
+	}
+
+	// Get install targets (Requirement 6.2)
+	installTargets := config.InstallTargets
+	if len(installTargets) == 0 {
+		return fmt.Errorf("no install targets configured. Run 'skills-pkg init --install-dir <dir>' to configure install targets")
+	}
+
+	// Install to all targets (Requirements 3.4, 4.4, 10.2, 10.5, 6.6)
+	fmt.Printf("Installing skill '%s' to %d target(s)...\n", skill.Name, len(installTargets))
+	if err := s.copySkillToTargets(downloadResult.Path, skill.Name, installTargets); err != nil {
+		return fmt.Errorf("failed to copy skill '%s' to install targets: %w. Check file permissions", skill.Name, err)
+	}
+
+	// Verify hash after installation (Requirements 6.4, 6.5)
+	fmt.Printf("Verifying installation of skill '%s'...\n", skill.Name)
+	if err := s.verifyInstalledSkill(ctx, skill, installTargets); err != nil {
+		// Show warning but continue (Requirement 6.5, 12.1, 12.2)
+		fmt.Printf("WARNING: Hash verification failed for skill '%s': %v. The skill may have been tampered with during installation.\n", skill.Name, err)
+	}
+
+	fmt.Printf("Successfully installed skill '%s'\n", skill.Name)
 	return nil
 }
 

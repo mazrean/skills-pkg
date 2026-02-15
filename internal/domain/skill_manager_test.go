@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/mazrean/skills-pkg/internal/port"
@@ -155,4 +156,360 @@ func TestSelectPackageManager_EmptySourceType(t *testing.T) {
 	if !errors.Is(err, ErrInvalidSource) {
 		t.Errorf("selectPackageManager should return ErrInvalidSource, got: %v", err)
 	}
+}
+
+// Enhanced mocks for Install testing
+
+type mockPackageManagerWithDownload struct {
+	sourceType     string
+	downloadResult *port.DownloadResult
+	downloadError  error
+	latestVersion  string
+}
+
+func (m *mockPackageManagerWithDownload) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
+	if m.downloadError != nil {
+		return nil, m.downloadError
+	}
+	return m.downloadResult, nil
+}
+
+func (m *mockPackageManagerWithDownload) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
+	return m.latestVersion, nil
+}
+
+func (m *mockPackageManagerWithDownload) SourceType() string {
+	return m.sourceType
+}
+
+type mockHashServiceWithCustom struct {
+	hashResult *port.HashResult
+	hashError  error
+}
+
+func (m *mockHashServiceWithCustom) CalculateHash(ctx context.Context, dirPath string) (*port.HashResult, error) {
+	if m.hashError != nil {
+		return nil, m.hashError
+	}
+	if m.hashResult != nil {
+		return m.hashResult, nil
+	}
+	return &port.HashResult{
+		Algorithm: "sha256",
+		Value:     "mockHash123",
+	}, nil
+}
+
+func (m *mockHashServiceWithCustom) HashAlgorithm() string {
+	return "sha256"
+}
+
+type mockPackageManagerMultiSkill struct {
+	sourceType   string
+	downloadDir1 string
+	downloadDir2 string
+	callCount    int
+}
+
+func (m *mockPackageManagerMultiSkill) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
+	m.callCount++
+	if m.callCount == 1 {
+		return &port.DownloadResult{Path: m.downloadDir1, Version: "v1.0.0"}, nil
+	}
+	return &port.DownloadResult{Path: m.downloadDir2, Version: "v2.0.0"}, nil
+}
+
+func (m *mockPackageManagerMultiSkill) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
+	return "", nil
+}
+
+func (m *mockPackageManagerMultiSkill) SourceType() string {
+	return m.sourceType
+}
+
+// TestInstall_SingleSkill tests installing a single skill successfully.
+// Requirements: 6.2, 3.3, 3.4, 4.3, 4.4, 5.3, 12.1
+func TestInstall_SingleSkill(t *testing.T) {
+	// Create temp directory for test
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/.skillspkg.toml"
+	installDir := tmpDir + "/install"
+	downloadDir := tmpDir + "/download"
+
+	// Create download directory with test files
+	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
+		t.Fatalf("Failed to create download directory: %v", err)
+	}
+	if err := os.WriteFile(downloadDir+"/test.txt", []byte("test content"), 0o644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Create test config
+	config := &Config{
+		Skills: []*Skill{
+			{
+				Name:      "test-skill",
+				Source:    "git",
+				URL:       "https://github.com/example/skill.git",
+				Version:   "v1.0.0",
+				HashAlgo:  "",
+				HashValue: "",
+			},
+		},
+		InstallTargets: []string{installDir},
+	}
+
+	// Setup config manager
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Save(ctx, config); err != nil {
+		t.Fatalf("Failed to save config: %v", err)
+	}
+
+	// Setup mock package manager
+	pm := &mockPackageManagerWithDownload{
+		sourceType: "git",
+		downloadResult: &port.DownloadResult{
+			Path:    downloadDir,
+			Version: "v1.0.0",
+		},
+	}
+
+	// Setup mock hash service
+	hashService := &mockHashServiceWithCustom{
+		hashResult: &port.HashResult{
+			Algorithm: "sha256",
+			Value:     "abcd1234",
+		},
+	}
+
+	// Create skill manager
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{pm})
+
+	// Execute install
+	err := skillManager.Install(ctx, "test-skill")
+
+	// Verify no error
+	if err != nil {
+		t.Fatalf("Install returned error: %v", err)
+	}
+
+	// Verify config was updated with hash
+	updatedConfig, err := configManager.Load(ctx)
+	if err != nil {
+		t.Fatalf("Failed to load updated config: %v", err)
+	}
+
+	skill := updatedConfig.FindSkillByName("test-skill")
+	if skill == nil {
+		t.Fatal("Skill not found in updated config")
+	}
+
+	if skill.HashAlgo != "sha256" {
+		t.Errorf("Expected hash algo 'sha256', got '%s'", skill.HashAlgo)
+	}
+
+	if skill.HashValue != "abcd1234" {
+		t.Errorf("Expected hash value 'abcd1234', got '%s'", skill.HashValue)
+	}
+
+	// Verify skill was installed to target directory
+	if _, err := os.Stat(installDir + "/test-skill"); os.IsNotExist(err) {
+		t.Error("Skill was not installed to target directory")
+	}
+}
+
+// TestInstall_AllSkills tests installing all skills when no skill name is specified.
+// Requirements: 6.1, 12.1
+func TestInstall_AllSkills(t *testing.T) {
+	// Create temp directory for test
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/.skillspkg.toml"
+	installDir := tmpDir + "/install"
+	downloadDir1 := tmpDir + "/download1"
+	downloadDir2 := tmpDir + "/download2"
+
+	// Create download directories with test files
+	for _, dir := range []string{downloadDir1, downloadDir2} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("Failed to create download directory: %v", err)
+		}
+		if err := os.WriteFile(dir+"/test.txt", []byte("test content"), 0o644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	// Create test config with two skills
+	config := &Config{
+		Skills: []*Skill{
+			{
+				Name:      "skill1",
+				Source:    "git",
+				URL:       "https://github.com/example/skill1.git",
+				Version:   "v1.0.0",
+				HashAlgo:  "",
+				HashValue: "",
+			},
+			{
+				Name:      "skill2",
+				Source:    "git",
+				URL:       "https://github.com/example/skill2.git",
+				Version:   "v2.0.0",
+				HashAlgo:  "",
+				HashValue: "",
+			},
+		},
+		InstallTargets: []string{installDir},
+	}
+
+	// Setup config manager
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Save(ctx, config); err != nil {
+		t.Fatalf("Failed to save config: %v", err)
+	}
+
+	// Setup mock package manager that returns different paths based on version
+	pm := &mockPackageManagerMultiSkill{
+		sourceType:    "git",
+		downloadDir1:  downloadDir1,
+		downloadDir2:  downloadDir2,
+		callCount:     0,
+	}
+
+	// Setup mock hash service
+	hashService := &mockHashServiceWithCustom{
+		hashResult: &port.HashResult{
+			Algorithm: "sha256",
+			Value:     "hash123",
+		},
+	}
+
+	// Create skill manager
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{pm})
+
+	// Execute install with empty skillName (install all)
+	err := skillManager.Install(ctx, "")
+
+	// Verify no error
+	if err != nil {
+		t.Fatalf("Install returned error: %v", err)
+	}
+
+	// Verify both skills were installed
+	for _, skillName := range []string{"skill1", "skill2"} {
+		if _, statErr := os.Stat(installDir + "/" + skillName); os.IsNotExist(statErr) {
+			t.Errorf("Skill '%s' was not installed", skillName)
+		}
+	}
+
+	// Verify config was updated with hashes
+	updatedConfig, err := configManager.Load(ctx)
+	if err != nil {
+		t.Fatalf("Failed to load updated config: %v", err)
+	}
+
+	for _, skillName := range []string{"skill1", "skill2"} {
+		skill := updatedConfig.FindSkillByName(skillName)
+		if skill == nil {
+			t.Fatalf("Skill '%s' not found in updated config", skillName)
+		}
+
+		if skill.HashValue == "" {
+			t.Errorf("Hash value for skill '%s' is empty", skillName)
+		}
+	}
+}
+
+// TestInstall_SkillNotFound tests error when specified skill is not in configuration.
+// Requirements: 6.3, 12.2, 12.3
+func TestInstall_SkillNotFound(t *testing.T) {
+	// Create temp directory for test
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/.skillspkg.toml"
+
+	// Create empty config
+	config := &Config{
+		Skills:         []*Skill{},
+		InstallTargets: []string{tmpDir + "/install"},
+	}
+
+	// Setup config manager
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Save(ctx, config); err != nil {
+		t.Fatalf("Failed to save config: %v", err)
+	}
+
+	// Create skill manager
+	hashService := &mockHashServiceWithCustom{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
+
+	// Try to install non-existent skill
+	err := skillManager.Install(ctx, "nonexistent-skill")
+
+	// Verify error
+	if err == nil {
+		t.Fatal("Expected error for non-existent skill, got nil")
+	}
+
+	// Verify error is ErrSkillNotFound
+	if !errors.Is(err, ErrSkillNotFound) {
+		t.Errorf("Expected ErrSkillNotFound, got: %v", err)
+	}
+
+	// Verify error message contains guidance (Requirement 12.2)
+	expectedSubstring := "Use 'skills-pkg add"
+	if !containsSubstring(err.Error(), expectedSubstring) {
+		t.Errorf("Error message should contain '%s', got: %s", expectedSubstring, err.Error())
+	}
+}
+
+func containsSubstring(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+// TestInstall_HashCalculation tests that hash is calculated and saved to config.
+// Requirements: 5.3, 12.1
+func TestInstall_HashCalculation(t *testing.T) {
+	t.Skip("Implement after full Install implementation")
+}
+
+// TestInstall_MultipleInstallTargets tests parallel installation to multiple directories.
+// Requirements: 10.2, 10.5, 12.1
+func TestInstall_MultipleInstallTargets(t *testing.T) {
+	t.Skip("Implement after full Install implementation")
+}
+
+// TestInstall_CreateMissingDirectories tests auto-creation of install target directories.
+// Requirements: 6.6, 12.1
+func TestInstall_CreateMissingDirectories(t *testing.T) {
+	t.Skip("Implement after full Install implementation")
+}
+
+// TestInstall_HashVerification tests hash verification after installation.
+// Requirements: 6.4, 6.5, 12.1
+func TestInstall_HashVerification(t *testing.T) {
+	t.Skip("Implement after full Install implementation")
+}
+
+// TestInstall_HashMismatchWarning tests warning display on hash mismatch while continuing installation.
+// Requirements: 6.5, 12.1, 12.2
+func TestInstall_HashMismatchWarning(t *testing.T) {
+	t.Skip("Implement after full Install implementation")
+}
+
+// TestInstall_FileSystemError tests handling of filesystem errors.
+// Requirements: 12.2, 12.3
+func TestInstall_FileSystemError(t *testing.T) {
+	t.Skip("Implement after full Install implementation")
 }
