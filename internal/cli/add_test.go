@@ -329,7 +329,8 @@ func TestAddCmd_Run(t *testing.T) {
 			}
 
 			// Execute command directly using the internal run method for testing
-			err := cmd.run(configPath, false) // non-verbose mode for testing
+			// Skip installation in tests to avoid network dependencies
+			err := cmd.run(configPath, false, false) // non-verbose mode, skip installation
 
 			// Check error
 			if tt.wantErr {

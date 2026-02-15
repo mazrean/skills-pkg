@@ -7,7 +7,9 @@ import (
 	"reflect"
 
 	"github.com/alecthomas/kong"
+	"github.com/mazrean/skills-pkg/internal/adapter"
 	"github.com/mazrean/skills-pkg/internal/domain"
+	"github.com/mazrean/skills-pkg/internal/port"
 )
 
 // AddCmd represents the add command
@@ -31,13 +33,14 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		}
 	}
 
-	return c.run(defaultConfigPath, verbose)
+	return c.run(defaultConfigPath, verbose, true)
 }
 
 // run is the internal implementation that can be called from tests with custom parameters
 // This method adds a skill to the configuration file.
+// If skipInstall is false, it will also install the skill after adding to configuration.
 // Requirements: 6.3, 12.1, 12.2, 12.3
-func (c *AddCmd) run(configPath string, verbose bool) error {
+func (c *AddCmd) run(configPath string, verbose bool, install bool) error {
 	// Create logger with verbose setting (requirement 12.4)
 	logger := NewLogger(verbose)
 
@@ -115,7 +118,41 @@ func (c *AddCmd) run(configPath string, verbose bool) error {
 
 	// Success message (requirement 12.1)
 	logger.Info("Successfully added skill '%s' to configuration", c.Name)
-	logger.Info("Use 'skills-pkg install %s' to install the skill", c.Name)
+
+	// Install the skill immediately after adding to configuration if requested
+	if install {
+		logger.Info("Installing skill '%s'", c.Name)
+		logger.Verbose("Starting installation process")
+
+		// Create HashService
+		hashService := adapter.NewDirhashService()
+
+		// Create PackageManagers
+		packageManagers := []port.PackageManager{
+			adapter.NewGitAdapter(),
+			adapter.NewNpmAdapter(),
+			adapter.NewGoModAdapter(),
+			adapter.NewPipAdapter(),
+			adapter.NewCargoAdapter(),
+		}
+
+		// Create SkillManager
+		skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
+
+		// Install the specific skill
+		if err := skillManager.Install(context.Background(), c.Name); err != nil {
+			// Handle installation errors (requirements 12.2, 12.3)
+			logger.Error("Failed to install skill '%s': %v", c.Name, err)
+			logger.Error("The skill has been added to configuration but installation failed")
+			logger.Error("You can retry installation with 'skills-pkg install %s'", c.Name)
+			return fmt.Errorf("installation failed: %w", err)
+		}
+
+		// Installation success message (requirement 12.1)
+		logger.Info("Successfully installed skill '%s'", c.Name)
+	} else {
+		logger.Info("Use 'skills-pkg install %s' to install the skill", c.Name)
+	}
 
 	return nil
 }

@@ -25,11 +25,11 @@ func TestCargoAdapter_Download_InvalidSource(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "empty_type",
 			source: &port.Source{
 				Type: "",
 				URL:  "example-crate",
 			},
+			name:    "empty_type",
 			wantErr: true,
 		},
 		{
@@ -70,11 +70,11 @@ func TestCargoAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "empty_type",
 			source: &port.Source{
 				Type: "",
 				URL:  "example-crate",
 			},
+			name:    "empty_type",
 			wantErr: true,
 		},
 		{
