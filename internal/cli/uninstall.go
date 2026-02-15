@@ -53,6 +53,8 @@ func (c *UninstallCmd) run(configPath string, verbose bool) error {
 		adapter.NewGitAdapter(),
 		adapter.NewNpmAdapter(),
 		adapter.NewGoModAdapter(),
+		adapter.NewPipAdapter(),
+		adapter.NewCargoAdapter(),
 	}
 
 	// Create SkillManager

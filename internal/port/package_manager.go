@@ -47,9 +47,11 @@ func (s *Source) Validate() error {
 		"git":       true,
 		"npm":       true,
 		"go-module": true,
+		"pip":       true,
+		"cargo":     true,
 	}
 	if !validTypes[s.Type] {
-		return errors.New("invalid source type: must be git, npm, or go-module")
+		return errors.New("invalid source type: must be git, npm, go-module, pip, or cargo")
 	}
 
 	return nil

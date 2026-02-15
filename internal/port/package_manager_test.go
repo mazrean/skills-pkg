@@ -50,6 +50,22 @@ func TestSourceValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "valid_pip_source",
+			source: &port.Source{
+				Type: "pip",
+				URL:  "example-package",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid_cargo_source",
+			source: &port.Source{
+				Type: "cargo",
+				URL:  "example-crate",
+			},
+			wantErr: false,
+		},
+		{
 			name: "empty_type",
 			source: &port.Source{
 				Type: "",
