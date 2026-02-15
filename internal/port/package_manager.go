@@ -3,12 +3,24 @@
 package port
 
 import (
+	"context"
 	"errors"
 )
 
 // PackageManager is the abstraction interface for downloading skills from various sources.
 // It supports Git repositories, npm registry, and Go Module proxy.
 // Requirements: 11.1, 11.3
+type PackageManager interface {
+	// Download downloads the skill from the source.
+	// Returns the local directory path and actual version downloaded.
+	Download(ctx context.Context, source *Source, version string) (*DownloadResult, error)
+
+	// GetLatestVersion retrieves the latest version of the skill.
+	GetLatestVersion(ctx context.Context, source *Source) (string, error)
+
+	// SourceType returns the type of the source (git, npm, go-module).
+	SourceType() string
+}
 
 // Source represents the source location for a skill.
 // It contains the type, URL, and optional parameters.
