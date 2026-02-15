@@ -10,33 +10,77 @@ import (
 // can be satisfied by a mock implementation.
 // Requirements: 10.4
 func TestAgentProviderInterface(t *testing.T) {
-	t.Run("interface_contract", func(t *testing.T) {
-		// Verify that a mock implementation satisfies the interface
-		var _ port.AgentProvider = &mockAgentProvider{}
-	})
+	tests := []struct {
+		name string
+	}{
+		{
+			name: "interface_contract",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Verify that a mock implementation satisfies the interface
+			var _ port.AgentProvider = &mockAgentProvider{}
+		})
+	}
 }
 
 // TestAgentProviderResolveAgentDir tests directory resolution contract.
 // Requirements: 10.3, 10.4
 func TestAgentProviderResolveAgentDir(t *testing.T) {
-	provider := &mockAgentProvider{}
+	tests := []struct {
+		name           string
+		provider       port.AgentProvider
+		agentName      string
+		wantErr        bool
+		wantNonEmptyDir bool
+	}{
+		{
+			name:           "valid_agent",
+			provider:       &mockAgentProvider{},
+			agentName:      "claude",
+			wantErr:        false,
+			wantNonEmptyDir: true,
+		},
+	}
 
-	t.Run("valid_agent", func(t *testing.T) {
-		dir, err := provider.ResolveAgentDir("claude")
-		if err != nil {
-			t.Errorf("ResolveAgentDir() error = %v, want nil", err)
-		}
-		if dir == "" {
-			t.Error("ResolveAgentDir() returned empty directory")
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, err := tt.provider.ResolveAgentDir(tt.agentName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ResolveAgentDir() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantNonEmptyDir && dir == "" {
+				t.Error("ResolveAgentDir() returned empty directory")
+			}
+		})
+	}
+}
 
-	t.Run("agent_name", func(t *testing.T) {
-		name := provider.AgentName()
-		if name == "" {
-			t.Error("AgentName() returned empty string")
-		}
-	})
+// TestAgentProviderAgentName tests AgentName method.
+// Requirements: 10.3, 10.4
+func TestAgentProviderAgentName(t *testing.T) {
+	tests := []struct {
+		name         string
+		provider     port.AgentProvider
+		wantNonEmpty bool
+	}{
+		{
+			name:         "agent_name",
+			provider:     &mockAgentProvider{},
+			wantNonEmpty: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name := tt.provider.AgentName()
+			if tt.wantNonEmpty && name == "" {
+				t.Error("AgentName() returned empty string")
+			}
+		})
+	}
 }
 
 // mockAgentProvider is a mock implementation of AgentProvider for testing.
