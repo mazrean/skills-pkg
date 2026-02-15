@@ -32,3 +32,5 @@ require (
 	golang.org/x/tools v0.41.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
+
+tool github.com/mazrean/skills-pkg
