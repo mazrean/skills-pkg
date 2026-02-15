@@ -20,6 +20,7 @@ func TestInitCmd_Run(t *testing.T) {
 		name        string
 		agent       string
 		installDirs []string
+		global      bool
 		wantErr     bool
 	}{
 		{
@@ -51,8 +52,13 @@ func TestInitCmd_Run(t *testing.T) {
 					t.Errorf("expected empty skills, got %d skills", len(config.Skills))
 				}
 
-				if len(config.InstallTargets) != 0 {
-					t.Errorf("expected empty install targets, got %v", config.InstallTargets)
+				// Default should now be ./.skills
+				if len(config.InstallTargets) != 1 {
+					t.Errorf("expected 1 install target (default ./.skills), got %d", len(config.InstallTargets))
+				}
+
+				if len(config.InstallTargets) > 0 && config.InstallTargets[0] != "./.skills" {
+					t.Errorf("expected default install target ./.skills, got %s", config.InstallTargets[0])
 				}
 			},
 		},
@@ -88,7 +94,7 @@ func TestInitCmd_Run(t *testing.T) {
 			},
 		},
 		{
-			name:        "success: initialize with agent flag",
+			name:        "success: initialize with agent flag (project-level)",
 			installDirs: nil,
 			agent:       "claude",
 			setupFunc: func(t *testing.T) (string, func()) {
@@ -110,10 +116,10 @@ func TestInitCmd_Run(t *testing.T) {
 					t.Errorf("expected 1 install target, got %d", len(config.InstallTargets))
 				}
 
-				// Should contain the claude agent directory
-				// The exact path will be resolved by ClaudeAgentAdapter
-				if len(config.InstallTargets) > 0 && config.InstallTargets[0] == "" {
-					t.Error("install target should not be empty")
+				// Should contain the project-level claude agent directory
+				expectedDir := "./.claude/skills"
+				if len(config.InstallTargets) > 0 && config.InstallTargets[0] != expectedDir {
+					t.Errorf("expected install target %s, got %s", expectedDir, config.InstallTargets[0])
 				}
 			},
 		},
@@ -148,9 +154,10 @@ func TestInitCmd_Run(t *testing.T) {
 			},
 		},
 		{
-			name:        "success: initialize with codex agent flag",
+			name:        "success: initialize with codex agent flag (project-level)",
 			installDirs: nil,
 			agent:       "codex",
+			global:      false,
 			setupFunc: func(t *testing.T) (string, func()) {
 				t.Helper()
 				tmpDir := t.TempDir()
@@ -170,10 +177,46 @@ func TestInitCmd_Run(t *testing.T) {
 					t.Errorf("expected 1 install target, got %d", len(config.InstallTargets))
 				}
 
-				// Should contain the codex agent directory
-				// The exact path will be resolved by CodexAgentAdapter
+				// Should contain the project-level codex agent directory
+				expectedDir := "./.codex/skills"
+				if len(config.InstallTargets) > 0 && config.InstallTargets[0] != expectedDir {
+					t.Errorf("expected install target %s, got %s", expectedDir, config.InstallTargets[0])
+				}
+			},
+		},
+		{
+			name:        "success: initialize with agent flag and global (user-level)",
+			installDirs: nil,
+			agent:       "claude",
+			global:      true,
+			setupFunc: func(t *testing.T) (string, func()) {
+				t.Helper()
+				tmpDir := t.TempDir()
+				configPath := filepath.Join(tmpDir, ".skillspkg.toml")
+				return configPath, func() {}
+			},
+			wantErr: false,
+			checkFunc: func(t *testing.T, configPath string) {
+				t.Helper()
+				cm := domain.NewConfigManager(configPath)
+				config, err := cm.Load(context.Background())
+				if err != nil {
+					t.Fatalf("failed to load created config: %v", err)
+				}
+
+				if len(config.InstallTargets) != 1 {
+					t.Errorf("expected 1 install target, got %d", len(config.InstallTargets))
+				}
+
+				// Should contain the user-level claude agent directory
+				// The exact path will be resolved by ClaudeAgentAdapter (~/.claude/skills)
 				if len(config.InstallTargets) > 0 && config.InstallTargets[0] == "" {
 					t.Error("install target should not be empty")
+				}
+
+				// User-level directory should be an absolute path
+				if len(config.InstallTargets) > 0 && !filepath.IsAbs(config.InstallTargets[0]) {
+					t.Errorf("user-level directory should be absolute path, got %s", config.InstallTargets[0])
 				}
 			},
 		},
@@ -209,6 +252,7 @@ func TestInitCmd_Run(t *testing.T) {
 			cmd := &InitCmd{
 				InstallDir: tt.installDirs,
 				Agent:      tt.agent,
+				Global:     tt.global,
 			}
 
 			// Execute command directly using the internal run method for testing
