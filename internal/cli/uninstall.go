@@ -51,10 +51,7 @@ func (c *UninstallCmd) run(configPath string, verbose bool) error {
 	// Create PackageManagers
 	packageManagers := []port.PackageManager{
 		adapter.NewGitAdapter(),
-		adapter.NewNpmAdapter(),
 		adapter.NewGoModAdapter(),
-		adapter.NewPipAdapter(),
-		adapter.NewCargoAdapter(),
 	}
 
 	// Create SkillManager

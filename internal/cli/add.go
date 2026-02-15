@@ -15,8 +15,8 @@ import (
 // AddCmd represents the add command
 type AddCmd struct {
 	Name    string `arg:"" help:"Skill name"`
-	Source  string `default:"git" help:"Source type (git, npm, go-module, pip, cargo)"`
-	URL     string `required:"" help:"Source URL (Git URL, npm package name, or Go module path)"`
+	Source  string `default:"git" help:"Source type (git, go-module)"`
+	URL     string `required:"" help:"Source URL (Git URL or Go module path)"`
 	Version string `default:"latest" help:"Version (tag, commit hash, or semantic version)"`
 	SubDir  string `help:"Subdirectory within the source to extract (default: skills/{name})"`
 }
@@ -51,16 +51,13 @@ func (c *AddCmd) run(configPath string, verbose bool, install bool) error {
 	// Validate source type (requirement 6.3)
 	validSources := map[string]bool{
 		"git":       true,
-		"npm":       true,
 		"go-module": true,
-		"pip":       true,
-		"cargo":     true,
 	}
 	if !validSources[c.Source] {
 		// Report invalid source type with cause and recommended action (requirements 12.2, 12.3)
 		logger.Error("Invalid source type '%s'", c.Source)
-		logger.Error("Supported source types: git, npm, go-module, pip, cargo")
-		return fmt.Errorf("%w: %s. Supported types: git, npm, go-module, pip, cargo", domain.ErrInvalidSource, c.Source)
+		logger.Error("Supported source types: git, go-module")
+		return fmt.Errorf("%w: %s. Supported types: git, go-module", domain.ErrInvalidSource, c.Source)
 	}
 
 	// Create ConfigManager
@@ -106,7 +103,7 @@ func (c *AddCmd) run(configPath string, verbose bool, install bool) error {
 		if errors.Is(err, domain.ErrInvalidSource) {
 			// Invalid source type
 			logger.Error("Invalid source type '%s'", c.Source)
-			logger.Error("Supported source types: git, npm, go-module, pip, cargo")
+			logger.Error("Supported source types: git, go-module")
 			return err
 		}
 
@@ -130,10 +127,7 @@ func (c *AddCmd) run(configPath string, verbose bool, install bool) error {
 		// Create PackageManagers
 		packageManagers := []port.PackageManager{
 			adapter.NewGitAdapter(),
-			adapter.NewNpmAdapter(),
 			adapter.NewGoModAdapter(),
-			adapter.NewPipAdapter(),
-			adapter.NewCargoAdapter(),
 		}
 
 		// Create SkillManager
