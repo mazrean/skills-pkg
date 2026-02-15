@@ -420,12 +420,45 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	}, nil
 }
 
-// Uninstall removes the specified skill from all installation targets.
-// This is a placeholder implementation for task 6.1.
-// Full implementation will be provided in task 6.4.
-// Requirements: 9.1, 9.2, 9.3, 9.4
+// Uninstall removes the specified skill from all installation targets
+// and from the configuration file.
+// Requirements: 9.1, 9.2, 9.3, 9.4, 12.2
 func (s *skillManagerImpl) Uninstall(ctx context.Context, skillName string) error {
-	// Placeholder implementation
-	// Full implementation in task 6.4
+	// Progress information (Requirement 12.1)
+	fmt.Printf("Uninstalling skill '%s'...\n", skillName)
+
+	// Load configuration (Requirement 9.2)
+	config, err := s.configManager.Load(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Check if skill exists (Requirement 9.3)
+	skill := config.FindSkillByName(skillName)
+	if skill == nil {
+		// Requirement 9.3, 12.2
+		return fmt.Errorf("%w: skill '%s' not found in configuration", ErrSkillNotFound, skillName)
+	}
+
+	// Remove skill from all install target directories (Requirement 9.1)
+	installTargets := config.InstallTargets
+	for _, target := range installTargets {
+		skillDir := target + "/" + skillName
+
+		// Remove skill directory if it exists
+		if err := os.RemoveAll(skillDir); err != nil {
+			// Filesystem error handling (Requirement 12.2, 12.3)
+			return fmt.Errorf("failed to remove skill directory at %s: %w. Check file permissions", skillDir, err)
+		}
+		fmt.Printf("Removed skill '%s' from %s\n", skillName, target)
+	}
+
+	// Remove skill from configuration (Requirement 9.2)
+	if err := s.configManager.RemoveSkill(ctx, skillName); err != nil {
+		return fmt.Errorf("failed to remove skill from configuration: %w", err)
+	}
+
+	// Success message (Requirement 9.4, 12.2)
+	fmt.Printf("Successfully uninstalled skill '%s'\n", skillName)
 	return nil
 }

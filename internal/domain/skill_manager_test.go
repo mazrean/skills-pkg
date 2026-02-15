@@ -792,3 +792,185 @@ func (m *mockPackageManagerWithError) GetLatestVersion(ctx context.Context, sour
 func (m *mockPackageManagerWithError) SourceType() string {
 	return m.sourceType
 }
+
+// TestUninstall_Success tests successfully uninstalling a skill.
+// Requirements: 9.1, 9.2, 9.4, 12.2
+func TestUninstall_Success(t *testing.T) {
+	// Create temp directory for test
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/.skillspkg.toml"
+	installDir1 := tmpDir + "/install1"
+	installDir2 := tmpDir + "/install2"
+
+	// Create install directories and skill directories
+	for _, dir := range []string{installDir1, installDir2} {
+		skillDir := dir + "/test-skill"
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("Failed to create skill directory: %v", err)
+		}
+		if err := os.WriteFile(skillDir+"/test.txt", []byte("test"), 0o644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	// Create test config with skill
+	config := &Config{
+		Skills: []*Skill{
+			{
+				Name:      "test-skill",
+				Source:    "git",
+				URL:       "https://github.com/example/skill.git",
+				Version:   "v1.0.0",
+				HashAlgo:  "sha256",
+				HashValue: "hash123",
+			},
+		},
+		InstallTargets: []string{installDir1, installDir2},
+	}
+
+	// Setup config manager
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Save(ctx, config); err != nil {
+		t.Fatalf("Failed to save config: %v", err)
+	}
+
+	// Create skill manager
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
+
+	// Execute uninstall
+	err := skillManager.Uninstall(ctx, "test-skill")
+
+	// Verify no error
+	if err != nil {
+		t.Fatalf("Uninstall returned error: %v", err)
+	}
+
+	// Verify skill was removed from all install directories (Requirement 9.1)
+	for _, dir := range []string{installDir1, installDir2} {
+		skillDir := dir + "/test-skill"
+		if _, statErr := os.Stat(skillDir); !os.IsNotExist(statErr) {
+			t.Errorf("Skill directory still exists at %s", skillDir)
+		}
+	}
+
+	// Verify skill was removed from config (Requirement 9.2)
+	updatedConfig, err := configManager.Load(ctx)
+	if err != nil {
+		t.Fatalf("Failed to load updated config: %v", err)
+	}
+
+	if updatedConfig.FindSkillByName("test-skill") != nil {
+		t.Error("Skill should have been removed from config")
+	}
+}
+
+// TestUninstall_SkillNotFound tests error when skill is not in configuration.
+// Requirements: 9.3, 12.2, 12.3
+func TestUninstall_SkillNotFound(t *testing.T) {
+	// Create temp directory for test
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/.skillspkg.toml"
+
+	// Create empty config
+	config := &Config{
+		Skills:         []*Skill{},
+		InstallTargets: []string{tmpDir + "/install"},
+	}
+
+	// Setup config manager
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Save(ctx, config); err != nil {
+		t.Fatalf("Failed to save config: %v", err)
+	}
+
+	// Create skill manager
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
+
+	// Try to uninstall non-existent skill
+	err := skillManager.Uninstall(ctx, "nonexistent-skill")
+
+	// Verify error (Requirement 9.3)
+	if err == nil {
+		t.Fatal("Expected error for non-existent skill, got nil")
+	}
+
+	// Verify error is ErrSkillNotFound
+	if !errors.Is(err, ErrSkillNotFound) {
+		t.Errorf("Expected ErrSkillNotFound, got: %v", err)
+	}
+
+	// Verify error message contains guidance (Requirement 12.2)
+	if err.Error() == "" {
+		t.Error("Error message should not be empty")
+	}
+}
+
+// TestUninstall_RemoveFromAllTargets tests removal from all install target directories.
+// Requirements: 9.1, 10.2
+func TestUninstall_RemoveFromAllTargets(t *testing.T) {
+	// Create temp directory for test
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/.skillspkg.toml"
+	installDirs := []string{
+		tmpDir + "/install1",
+		tmpDir + "/install2",
+		tmpDir + "/install3",
+	}
+
+	// Create install directories and skill directories
+	for _, dir := range installDirs {
+		skillDir := dir + "/test-skill"
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("Failed to create skill directory: %v", err)
+		}
+		if err := os.WriteFile(skillDir+"/test.txt", []byte("test"), 0o644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+	}
+
+	// Create test config with skill
+	config := &Config{
+		Skills: []*Skill{
+			{
+				Name:      "test-skill",
+				Source:    "git",
+				URL:       "https://github.com/example/skill.git",
+				Version:   "v1.0.0",
+				HashAlgo:  "sha256",
+				HashValue: "hash123",
+			},
+		},
+		InstallTargets: installDirs,
+	}
+
+	// Setup config manager
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Save(ctx, config); err != nil {
+		t.Fatalf("Failed to save config: %v", err)
+	}
+
+	// Create skill manager
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
+
+	// Execute uninstall
+	err := skillManager.Uninstall(ctx, "test-skill")
+
+	// Verify no error
+	if err != nil {
+		t.Fatalf("Uninstall returned error: %v", err)
+	}
+
+	// Verify skill was removed from all install directories (Requirement 9.1, 10.2)
+	for _, dir := range installDirs {
+		skillDir := dir + "/test-skill"
+		if _, statErr := os.Stat(skillDir); !os.IsNotExist(statErr) {
+			t.Errorf("Skill directory still exists at %s", skillDir)
+		}
+	}
+}
