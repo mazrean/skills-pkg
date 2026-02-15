@@ -13,9 +13,9 @@ var CLI struct {
 	Verify    cli.VerifyCmd    `cmd:"" help:"Verify skill integrity with hash"`
 	Add       cli.AddCmd       `cmd:"" help:"Add a skill to configuration"`
 	Uninstall cli.UninstallCmd `cmd:"" help:"Uninstall skills"`
-	Init      cli.InitCmd      `cmd:"" help:"Initialize project with .skillspkg.toml"`
 	Install   cli.InstallCmd   `cmd:"" help:"Install skills from configuration"`
 	Update    cli.UpdateCmd    `cmd:"" help:"Update skills to latest versions"`
+	Init      cli.InitCmd      `cmd:"" help:"Initialize project with .skillspkg.toml"`
 	Verbose   bool             `help:"Enable verbose logging" short:"v" env:"SKILLSPKG_VERBOSE"`
 }
 
