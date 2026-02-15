@@ -113,7 +113,6 @@ func (s *skillManagerImpl) Install(ctx context.Context, skillName string) error 
 	// Install skills concurrently using errgroup
 	eg, egCtx := errgroup.WithContext(ctx)
 	for _, skill := range skillsToInstall {
-		skill := skill // capture loop variable
 		eg.Go(func() error {
 			return s.installSingleSkill(egCtx, config, skill, false)
 		})
@@ -139,7 +138,6 @@ func (s *skillManagerImpl) copySkillToTargets(sourcePath, skillName string, inst
 	var eg errgroup.Group
 
 	for _, target := range installTargets {
-		target := target // capture loop variable
 		eg.Go(func() error {
 			// Create skill directory in target (Requirement 6.6)
 			skillDir := target + "/" + skillName
@@ -173,7 +171,6 @@ func (s *skillManagerImpl) verifyInstalledSkill(ctx context.Context, skill *Skil
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	for _, target := range installTargets {
-		target := target // capture loop variable
 		eg.Go(func() error {
 			skillDir := target + "/" + skill.Name
 
@@ -372,7 +369,6 @@ func (s *skillManagerImpl) Update(ctx context.Context, skillName string) (*Updat
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	for i, skill := range skillsToUpdate {
-		i, skill := i, skill // capture loop variables
 		eg.Go(func() error {
 			result, err := s.updateSingleSkill(egCtx, config, skill, false)
 			if err != nil {
