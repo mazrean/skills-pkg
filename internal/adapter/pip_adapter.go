@@ -19,6 +19,11 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
+const (
+	// pipPathSplitLimit is the limit for splitting paths to separate the first directory from the rest
+	pipPathSplitLimit = 2
+)
+
 // PipAdapter implements the PackageManager interface for PyPI (pip).
 // It handles downloading packages from PyPI, extracting distributions,
 // and retrieving the latest version.
@@ -154,8 +159,8 @@ func (a *PipAdapter) GetLatestVersion(ctx context.Context, source *port.Source) 
 
 // pypiPackageMetadata represents the structure of PyPI package metadata.
 type pypiPackageMetadata struct {
-	Info     pypiInfo                       `json:"info"`
-	Releases map[string][]pypiReleaseFile   `json:"releases"`
+	Releases map[string][]pypiReleaseFile `json:"releases"`
+	Info     pypiInfo                     `json:"info"`
 }
 
 // pypiInfo represents the info field in PyPI package metadata.
@@ -224,11 +229,12 @@ func (a *PipAdapter) downloadAndExtract(ctx context.Context, downloadURL, target
 	}
 
 	// Extract based on file type
-	if strings.HasSuffix(downloadURL, ".tar.gz") {
+	switch {
+	case strings.HasSuffix(downloadURL, ".tar.gz"):
 		if err := a.extractTarGz(resp.Body, targetDir); err != nil {
 			return fmt.Errorf("failed to extract tar.gz: %w", err)
 		}
-	} else if strings.HasSuffix(downloadURL, ".whl") {
+	case strings.HasSuffix(downloadURL, ".whl"):
 		// For wheel files, we need to download first then extract as zip
 		tmpFile, err := os.CreateTemp("", "skills-pkg-pip-*.whl")
 		if err != nil {
@@ -246,7 +252,7 @@ func (a *PipAdapter) downloadAndExtract(ctx context.Context, downloadURL, target
 		// Wheel files are zip files, but we'll treat them simply by extracting
 		// For simplicity, we could use the zip extraction logic
 		return fmt.Errorf("wheel file extraction not yet implemented")
-	} else {
+	default:
 		return fmt.Errorf("unsupported distribution format: %s", downloadURL)
 	}
 
@@ -282,7 +288,7 @@ func (a *PipAdapter) extractTarGz(r io.Reader, targetDir string) error {
 
 		// Determine prefix directory from the first entry
 		if prefixDir == "" {
-			parts := strings.SplitN(header.Name, "/", 2)
+			parts := strings.SplitN(header.Name, "/", pipPathSplitLimit)
 			if len(parts) > 0 {
 				prefixDir = parts[0] + "/"
 			}
