@@ -22,151 +22,162 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 		t.Skip("Skipping integration tests in short mode")
 	}
 
-	t.Run("Install_Git_Skill_Integration", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		setupFunc    func(t *testing.T) (configPath, installDir string)
+		runTest      func(t *testing.T, configPath, installDir string)
+		validateFunc func(t *testing.T, configPath, installDir string)
+		name         string
+		skipReason   string
+		skipTest     bool
+	}{
+		{
+			name:       "Install_Git_Skill_Integration",
+			skipTest:   true,
+			skipReason: "Skipping Git integration test - requires local git setup",
+			setupFunc: func(t *testing.T) (string, string) {
+				tempDir := t.TempDir()
+				testRepoDir := filepath.Join(tempDir, "test-repo")
+				err := os.MkdirAll(testRepoDir, 0o755)
+				if err != nil {
+					t.Fatalf("Failed to create test repo directory: %v", err)
+				}
 
-		// Setup: Create temporary directories
-		tempDir := t.TempDir()
+				err = os.WriteFile(filepath.Join(testRepoDir, "README.md"), []byte("# Test Skill\n"), 0o644)
+				if err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
 
-		// Create a local test Git repository
-		testRepoDir := filepath.Join(tempDir, "test-repo")
-		err := os.MkdirAll(testRepoDir, 0o755)
-		if err != nil {
-			t.Fatalf("Failed to create test repo directory: %v", err)
-		}
+				return filepath.Join(tempDir, ".skillspkg.toml"), filepath.Join(tempDir, "skills")
+			},
+			runTest: func(t *testing.T, configPath, installDir string) {
+				ctx := context.Background()
+				configManager := domain.NewConfigManager(configPath)
+				err := configManager.Initialize(ctx, []string{installDir})
+				if err != nil {
+					t.Fatalf("Initialize failed: %v", err)
+				}
 
-		// Initialize Git repository
-		err = os.WriteFile(filepath.Join(testRepoDir, "README.md"), []byte("# Test Skill\n"), 0o644)
-		if err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
+				skill := &domain.Skill{
+					Name:      "test-git-skill",
+					Source:    "git",
+					URL:       filepath.Dir(configPath) + "/test-repo",
+					Version:   "main",
+					HashAlgo:  "sha256",
+					HashValue: "",
+				}
 
-		// Note: We're skipping actual git init for now as it requires git binary
-		// This test validates the integration flow, actual git operations are tested in adapter tests
-		t.Skip("Skipping Git integration test - requires local git setup")
+				err = configManager.AddSkill(ctx, skill)
+				if err != nil {
+					t.Fatalf("AddSkill failed: %v", err)
+				}
 
-		configPath := filepath.Join(tempDir, ".skillspkg.toml")
-		installDir := filepath.Join(tempDir, "skills")
+				hashService := adapter.NewDirhashService()
+				gitAdapter := adapter.NewGitAdapter()
+				packageManagers := []port.PackageManager{gitAdapter}
+				skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
 
-		ctx := context.Background()
+				err = skillManager.Install(ctx, "test-git-skill")
+				if err != nil {
+					t.Fatalf("Install failed: %v", err)
+				}
+			},
+			validateFunc: func(t *testing.T, configPath, installDir string) {
+				skillPath := filepath.Join(installDir, "test-git-skill")
+				if _, statErr := os.Stat(skillPath); os.IsNotExist(statErr) {
+					t.Errorf("Skill directory was not created: %s", skillPath)
+				}
 
-		// Initialize configuration
-		configManager := domain.NewConfigManager(configPath)
-		err = configManager.Initialize(ctx, []string{installDir})
-		if err != nil {
-			t.Fatalf("Initialize failed: %v", err)
-		}
+				ctx := context.Background()
+				configManager := domain.NewConfigManager(configPath)
+				config, err := configManager.Load(ctx)
+				if err != nil {
+					t.Fatalf("Load config failed: %v", err)
+				}
 
-		// Add a test skill from a local Git repository
-		skill := &domain.Skill{
-			Name:      "test-git-skill",
-			Source:    "git",
-			URL:       testRepoDir,
-			Version:   "main",
-			HashAlgo:  "sha256",
-			HashValue: "", // Will be calculated during install
-		}
+				var installedSkill *domain.Skill
+				for _, s := range config.Skills {
+					if s.Name == "test-git-skill" {
+						installedSkill = s
+						break
+					}
+				}
 
-		err = configManager.AddSkill(ctx, skill)
-		if err != nil {
-			t.Fatalf("AddSkill failed: %v", err)
-		}
+				if installedSkill == nil {
+					t.Fatal("Installed skill not found in configuration")
+				}
 
-		// Setup SkillManager with adapters
-		hashService := adapter.NewDirhashService()
-		gitAdapter := adapter.NewGitAdapter()
-		packageManagers := []port.PackageManager{gitAdapter}
+				if installedSkill.HashValue == "" {
+					t.Error("Hash value was not calculated")
+				}
 
-		skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
+				if installedSkill.HashAlgo != "sha256" {
+					t.Errorf("Expected hash algorithm sha256, got %s", installedSkill.HashAlgo)
+				}
+			},
+		},
+		{
+			name:         "Install_Multiple_Targets_Integration",
+			skipTest:     true,
+			skipReason:   "Skipping Git integration test - requires external repository access",
+			setupFunc:    func(t *testing.T) (string, string) { return "", "" },
+			runTest:      func(t *testing.T, configPath, installDir string) {},
+			validateFunc: func(t *testing.T, configPath, installDir string) {},
+		},
+		{
+			name:         "Uninstall_Skill_Integration",
+			skipTest:     true,
+			skipReason:   "Skipping Git integration test - requires external repository access",
+			setupFunc:    func(t *testing.T) (string, string) { return "", "" },
+			runTest:      func(t *testing.T, configPath, installDir string) {},
+			validateFunc: func(t *testing.T, configPath, installDir string) {},
+		},
+		{
+			name:     "Install_Nonexistent_Skill_Error",
+			skipTest: false,
+			setupFunc: func(t *testing.T) (string, string) {
+				tempDir := t.TempDir()
+				return filepath.Join(tempDir, ".skillspkg.toml"), filepath.Join(tempDir, "skills")
+			},
+			runTest: func(t *testing.T, configPath, installDir string) {
+				ctx := context.Background()
+				configManager := domain.NewConfigManager(configPath)
+				err := configManager.Initialize(ctx, []string{installDir})
+				if err != nil {
+					t.Fatalf("Initialize failed: %v", err)
+				}
 
-		// Test: Install skill
-		err = skillManager.Install(ctx, "test-git-skill")
-		if err != nil {
-			t.Fatalf("Install failed: %v", err)
-		}
+				hashService := adapter.NewDirhashService()
+				gitAdapter := adapter.NewGitAdapter()
+				packageManagers := []port.PackageManager{gitAdapter}
+				skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
 
-		// Verify: Skill directory exists
-		skillPath := filepath.Join(installDir, "test-git-skill")
-		if _, statErr := os.Stat(skillPath); os.IsNotExist(statErr) {
-			t.Errorf("Skill directory was not created: %s", skillPath)
-		}
+				err = skillManager.Install(ctx, "nonexistent-skill")
+				if err == nil {
+					t.Fatal("Expected error when installing nonexistent skill, got nil")
+				}
 
-		// Verify: Hash value was calculated and saved
-		config, err := configManager.Load(ctx)
-		if err != nil {
-			t.Fatalf("Load config failed: %v", err)
-		}
+				errMsg := err.Error()
+				if errMsg == "" {
+					t.Error("Expected non-empty error message")
+				}
+			},
+			validateFunc: func(t *testing.T, configPath, installDir string) {},
+		},
+	}
 
-		var installedSkill *domain.Skill
-		for _, s := range config.Skills {
-			if s.Name == "test-git-skill" {
-				installedSkill = s
-				break
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tt.skipTest {
+				t.Skip(tt.skipReason)
 			}
-		}
 
-		if installedSkill == nil {
-			t.Fatal("Installed skill not found in configuration")
-		}
-
-		if installedSkill.HashValue == "" {
-			t.Error("Hash value was not calculated")
-		}
-
-		if installedSkill.HashAlgo != "sha256" {
-			t.Errorf("Expected hash algorithm sha256, got %s", installedSkill.HashAlgo)
-		}
-	})
-
-	t.Run("Install_Multiple_Targets_Integration", func(t *testing.T) {
-		t.Parallel()
-
-		// Skip test that requires external Git repository
-		t.Skip("Skipping Git integration test - requires external repository access")
-	})
-
-	t.Run("Uninstall_Skill_Integration", func(t *testing.T) {
-		t.Parallel()
-
-		// Skip test that requires external Git repository
-		t.Skip("Skipping Git integration test - requires external repository access")
-	})
-
-	t.Run("Install_Nonexistent_Skill_Error", func(t *testing.T) {
-		t.Parallel()
-
-		// Setup
-		tempDir := t.TempDir()
-		configPath := filepath.Join(tempDir, ".skillspkg.toml")
-		installDir := filepath.Join(tempDir, "skills")
-
-		ctx := context.Background()
-
-		configManager := domain.NewConfigManager(configPath)
-		err := configManager.Initialize(ctx, []string{installDir})
-		if err != nil {
-			t.Fatalf("Initialize failed: %v", err)
-		}
-
-		hashService := adapter.NewDirhashService()
-		gitAdapter := adapter.NewGitAdapter()
-		packageManagers := []port.PackageManager{gitAdapter}
-
-		skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
-
-		// Test: Attempt to install nonexistent skill
-		err = skillManager.Install(ctx, "nonexistent-skill")
-		if err == nil {
-			t.Fatal("Expected error when installing nonexistent skill, got nil")
-		}
-
-		// Verify: Error message is descriptive
-		// (Requirements 12.2, 12.3: error contains cause and recommended action)
-		errMsg := err.Error()
-		if errMsg == "" {
-			t.Error("Expected non-empty error message")
-		}
-	})
+			configPath, installDir := tt.setupFunc(t)
+			tt.runTest(t, configPath, installDir)
+			tt.validateFunc(t, configPath, installDir)
+		})
+	}
 }
 
 // TestSkillManagerErrorHandling tests error handling across different error categories.
@@ -174,50 +185,71 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 func TestSkillManagerErrorHandling(t *testing.T) {
 	t.Parallel()
 
-	t.Run("FileSystem_Error_Distinction", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		setupFunc  func(t *testing.T) (ctx context.Context, configManager *domain.ConfigManager)
+		testFunc   func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager)
+		name       string
+		skipReason string
+		skipTest   bool
+	}{
+		{
+			name:       "FileSystem_Error_Distinction",
+			skipTest:   true,
+			skipReason: "Skipping Git integration test - requires external repository access",
+			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager) {
+				return context.Background(), nil
+			},
+			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager) {},
+		},
+		{
+			name:     "Unsupported_Source_Error",
+			skipTest: false,
+			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager) {
+				tempDir := t.TempDir()
+				configPath := filepath.Join(tempDir, ".skillspkg.toml")
+				installDir := filepath.Join(tempDir, "skills")
 
-		// Skip test that requires external Git repository
-		t.Skip("Skipping Git integration test - requires external repository access")
-	})
+				ctx := context.Background()
+				configManager := domain.NewConfigManager(configPath)
+				err := configManager.Initialize(ctx, []string{installDir})
+				if err != nil {
+					t.Fatalf("Initialize failed: %v", err)
+				}
+				return ctx, configManager
+			},
+			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager) {
+				skill := &domain.Skill{
+					Name:      "unsupported-skill",
+					Source:    "unsupported-source",
+					URL:       "https://example.com",
+					Version:   "1.0.0",
+					HashAlgo:  "sha256",
+					HashValue: "",
+				}
 
-	t.Run("Unsupported_Source_Error", func(t *testing.T) {
-		t.Parallel()
+				err := configManager.AddSkill(ctx, skill)
+				if err == nil {
+					t.Fatal("Expected error when adding skill with unsupported source type, got nil")
+				}
 
-		// Setup
-		tempDir := t.TempDir()
-		configPath := filepath.Join(tempDir, ".skillspkg.toml")
-		installDir := filepath.Join(tempDir, "skills")
+				errMsg := err.Error()
+				if errMsg == "" {
+					t.Error("Expected non-empty error message")
+				}
+			},
+		},
+	}
 
-		ctx := context.Background()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		configManager := domain.NewConfigManager(configPath)
-		err := configManager.Initialize(ctx, []string{installDir})
-		if err != nil {
-			t.Fatalf("Initialize failed: %v", err)
-		}
+			if tt.skipTest {
+				t.Skip(tt.skipReason)
+			}
 
-		// Test: Attempt to add skill with unsupported source type
-		// This should fail during validation
-		skill := &domain.Skill{
-			Name:      "unsupported-skill",
-			Source:    "unsupported-source",
-			URL:       "https://example.com",
-			Version:   "1.0.0",
-			HashAlgo:  "sha256",
-			HashValue: "",
-		}
-
-		err = configManager.AddSkill(ctx, skill)
-		if err == nil {
-			t.Fatal("Expected error when adding skill with unsupported source type, got nil")
-		}
-
-		// Verify: Error indicates invalid source
-		// (Requirements 11.5, 12.2: error contains cause and supported types)
-		errMsg := err.Error()
-		if errMsg == "" {
-			t.Error("Expected non-empty error message")
-		}
-	})
+			ctx, configManager := tt.setupFunc(t)
+			tt.testFunc(t, ctx, configManager)
+		})
+	}
 }

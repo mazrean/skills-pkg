@@ -10,63 +10,91 @@ import (
 
 // TestCodexAgentAdapter_ResolveAgentDir tests directory resolution for Codex agent.
 func TestCodexAgentAdapter_ResolveAgentDir(t *testing.T) {
-	provider := adapter.NewCodexAgentAdapter()
+	tests := []struct {
+		name            string
+		agentName       string
+		checkSuffix     string
+		wantErr         bool
+		checkAbsolute   bool
+		checkHomePrefix bool
+	}{
+		{
+			name:            "codex agent",
+			agentName:       "codex",
+			wantErr:         false,
+			checkAbsolute:   true,
+			checkSuffix:     filepath.Join(".codex", "skills"),
+			checkHomePrefix: true,
+		},
+		{
+			name:      "unsupported agent",
+			agentName: "unsupported",
+			wantErr:   true,
+		},
+		{
+			name:      "empty agent name",
+			agentName: "",
+			wantErr:   true,
+		},
+	}
 
-	t.Run("codex_agent", func(t *testing.T) {
-		dir, err := provider.ResolveAgentDir("codex")
-		if err != nil {
-			t.Fatalf("ResolveAgentDir(codex) error = %v, want nil", err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := adapter.NewCodexAgentAdapter()
 
-		// Verify it returns a valid path ending with .codex/skills
-		if !filepath.IsAbs(dir) {
-			t.Errorf("ResolveAgentDir(codex) = %q, want absolute path", dir)
-		}
+			dir, err := provider.ResolveAgentDir(tt.agentName)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ResolveAgentDir(%q) error = %v, wantErr %v", tt.agentName, err, tt.wantErr)
+			}
 
-		// Verify it ends with .codex/skills
-		expectedSuffix := filepath.Join(".codex", "skills")
-		if !hasPathSuffix(dir, expectedSuffix) {
-			t.Errorf("ResolveAgentDir(codex) = %q, want path ending with %q", dir, expectedSuffix)
-		}
+			if err != nil {
+				// Error message should not be empty for errors
+				if err.Error() == "" {
+					t.Error("ResolveAgentDir error message is empty")
+				}
+				return
+			}
 
-		// Verify it starts with home directory
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("os.UserHomeDir() error = %v", err)
-		}
-		expected := filepath.Join(home, ".codex", "skills")
-		if dir != expected {
-			t.Errorf("ResolveAgentDir(codex) = %q, want %q", dir, expected)
-		}
-	})
+			if tt.checkAbsolute && !filepath.IsAbs(dir) {
+				t.Errorf("ResolveAgentDir(%q) = %q, want absolute path", tt.agentName, dir)
+			}
 
-	t.Run("unsupported_agent", func(t *testing.T) {
-		_, err := provider.ResolveAgentDir("unsupported")
-		if err == nil {
-			t.Error("ResolveAgentDir(unsupported) error = nil, want error")
-		}
+			if tt.checkSuffix != "" && !hasPathSuffix(dir, tt.checkSuffix) {
+				t.Errorf("ResolveAgentDir(%q) = %q, want path ending with %q", tt.agentName, dir, tt.checkSuffix)
+			}
 
-		// Error message should mention the unsupported agent
-		errMsg := err.Error()
-		if errMsg == "" {
-			t.Error("ResolveAgentDir(unsupported) error message is empty")
-		}
-	})
-
-	t.Run("empty_agent_name", func(t *testing.T) {
-		_, err := provider.ResolveAgentDir("")
-		if err == nil {
-			t.Error("ResolveAgentDir(\"\") error = nil, want error")
-		}
-	})
+			if tt.checkHomePrefix {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					t.Fatalf("os.UserHomeDir() error = %v", err)
+				}
+				expected := filepath.Join(home, ".codex", "skills")
+				if dir != expected {
+					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
+				}
+			}
+		})
+	}
 }
 
 // TestCodexAgentAdapter_AgentName tests agent name retrieval.
 func TestCodexAgentAdapter_AgentName(t *testing.T) {
-	provider := adapter.NewCodexAgentAdapter()
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should return codex",
+			want: "codex",
+		},
+	}
 
-	name := provider.AgentName()
-	if name != "codex" {
-		t.Errorf("AgentName() = %q, want \"codex\"", name)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := adapter.NewCodexAgentAdapter()
+			if got := provider.AgentName(); got != tt.want {
+				t.Errorf("AgentName() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

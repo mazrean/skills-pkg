@@ -108,10 +108,42 @@ func TestVerboseFlag(t *testing.T) {
 
 // TestSubcommandStructure tests that all expected subcommands are available
 func TestSubcommandStructure(t *testing.T) {
-	subcommands := []string{"init", "add", "install", "update", "list", "uninstall", "verify"}
+	tests := []struct {
+		name       string
+		subcommand string
+	}{
+		{
+			name:       "subcommand_init",
+			subcommand: "init",
+		},
+		{
+			name:       "subcommand_add",
+			subcommand: "add",
+		},
+		{
+			name:       "subcommand_install",
+			subcommand: "install",
+		},
+		{
+			name:       "subcommand_update",
+			subcommand: "update",
+		},
+		{
+			name:       "subcommand_list",
+			subcommand: "list",
+		},
+		{
+			name:       "subcommand_uninstall",
+			subcommand: "uninstall",
+		},
+		{
+			name:       "subcommand_verify",
+			subcommand: "verify",
+		},
+	}
 
-	for _, subcmd := range subcommands {
-		t.Run("subcommand_"+subcmd, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			// Build the binary for testing
 			cmd := exec.CommandContext(ctx, "go", "build", "-o", "skills-pkg-test", ".")
@@ -121,17 +153,17 @@ func TestSubcommandStructure(t *testing.T) {
 			defer func() { _ = os.Remove("skills-pkg-test") }()
 
 			// Run with help to check if subcommand exists
-			testCmd := exec.CommandContext(ctx, "./skills-pkg-test", subcmd, "--help")
+			testCmd := exec.CommandContext(ctx, "./skills-pkg-test", tt.subcommand, "--help")
 			err := testCmd.Run()
 
 			// Subcommand help should exit with code 0
 			if err != nil {
 				if exitErr, ok := err.(*exec.ExitError); ok {
 					if exitErr.ExitCode() != 0 {
-						t.Errorf("Subcommand %s not properly defined, exit code: %d", subcmd, exitErr.ExitCode())
+						t.Errorf("Subcommand %s not properly defined, exit code: %d", tt.subcommand, exitErr.ExitCode())
 					}
 				} else {
-					t.Errorf("Unexpected error for subcommand %s: %v", subcmd, err)
+					t.Errorf("Unexpected error for subcommand %s: %v", tt.subcommand, err)
 				}
 			}
 		})

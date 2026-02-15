@@ -11,10 +11,20 @@ import (
 // can be satisfied by a mock implementation.
 // Requirements: 11.1, 11.3
 func TestPackageManagerInterface(t *testing.T) {
-	t.Run("interface_contract", func(t *testing.T) {
-		// Verify that a mock implementation satisfies the interface
-		var _ port.PackageManager = &mockPackageManager{}
-	})
+	tests := []struct {
+		name string
+	}{
+		{
+			name: "interface_contract",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Verify that a mock implementation satisfies the interface
+			var _ port.PackageManager = &mockPackageManager{}
+		})
+	}
 }
 
 // TestSourceValidation tests Source struct validation.
@@ -104,16 +114,32 @@ func TestSourceValidation(t *testing.T) {
 // TestDownloadResultStructure tests DownloadResult struct fields.
 // Requirements: 3.1, 4.1, 4.2
 func TestDownloadResultStructure(t *testing.T) {
-	result := &port.DownloadResult{
-		Path:    "/tmp/skill",
-		Version: "v1.0.0",
+	tests := []struct {
+		name        string
+		result      *port.DownloadResult
+		wantPath    string
+		wantVersion string
+	}{
+		{
+			name: "valid_download_result",
+			result: &port.DownloadResult{
+				Path:    "/tmp/skill",
+				Version: "v1.0.0",
+			},
+			wantPath:    "/tmp/skill",
+			wantVersion: "v1.0.0",
+		},
 	}
 
-	if result.Path != "/tmp/skill" {
-		t.Errorf("DownloadResult.Path = %v, want %v", result.Path, "/tmp/skill")
-	}
-	if result.Version != "v1.0.0" {
-		t.Errorf("DownloadResult.Version = %v, want %v", result.Version, "v1.0.0")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.result.Path != tt.wantPath {
+				t.Errorf("DownloadResult.Path = %v, want %v", tt.result.Path, tt.wantPath)
+			}
+			if tt.result.Version != tt.wantVersion {
+				t.Errorf("DownloadResult.Version = %v, want %v", tt.result.Version, tt.wantVersion)
+			}
+		})
 	}
 }
 

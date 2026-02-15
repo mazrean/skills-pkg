@@ -9,53 +9,90 @@ import (
 )
 
 func TestCopilotAgentAdapter_ResolveAgentDir(t *testing.T) {
-	provider := adapter.NewCopilotAgentAdapter()
+	tests := []struct {
+		name            string
+		agentName       string
+		checkSuffix     string
+		wantErr         bool
+		checkAbsolute   bool
+		checkHomePrefix bool
+	}{
+		{
+			name:            "copilot agent",
+			agentName:       "copilot",
+			wantErr:         false,
+			checkAbsolute:   true,
+			checkSuffix:     filepath.Join(".github", "skills"),
+			checkHomePrefix: true,
+		},
+		{
+			name:      "unsupported agent",
+			agentName: "unsupported",
+			wantErr:   true,
+		},
+		{
+			name:      "empty agent name",
+			agentName: "",
+			wantErr:   true,
+		},
+	}
 
-	t.Run("copilot_agent", func(t *testing.T) {
-		dir, err := provider.ResolveAgentDir("copilot")
-		if err != nil {
-			t.Fatalf("ResolveAgentDir(copilot) error = %v, want nil", err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := adapter.NewCopilotAgentAdapter()
 
-		if !filepath.IsAbs(dir) {
-			t.Errorf("ResolveAgentDir(copilot) = %q, want absolute path", dir)
-		}
+			dir, err := provider.ResolveAgentDir(tt.agentName)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ResolveAgentDir(%q) error = %v, wantErr %v", tt.agentName, err, tt.wantErr)
+			}
 
-		expectedSuffix := filepath.Join(".github", "skills")
-		if !hasPathSuffix(dir, expectedSuffix) {
-			t.Errorf("ResolveAgentDir(copilot) = %q, want path ending with %q", dir, expectedSuffix)
-		}
+			if err != nil {
+				// Error message should not be empty for errors
+				if err.Error() == "" {
+					t.Error("ResolveAgentDir error message is empty")
+				}
+				return
+			}
 
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("os.UserHomeDir() error = %v", err)
-		}
-		expected := filepath.Join(home, ".github", "skills")
-		if dir != expected {
-			t.Errorf("ResolveAgentDir(copilot) = %q, want %q", dir, expected)
-		}
-	})
+			if tt.checkAbsolute && !filepath.IsAbs(dir) {
+				t.Errorf("ResolveAgentDir(%q) = %q, want absolute path", tt.agentName, dir)
+			}
 
-	t.Run("unsupported_agent", func(t *testing.T) {
-		_, err := provider.ResolveAgentDir("unsupported")
-		if err == nil {
-			t.Error("ResolveAgentDir(unsupported) error = nil, want error")
-		}
-	})
+			if tt.checkSuffix != "" && !hasPathSuffix(dir, tt.checkSuffix) {
+				t.Errorf("ResolveAgentDir(%q) = %q, want path ending with %q", tt.agentName, dir, tt.checkSuffix)
+			}
 
-	t.Run("empty_agent_name", func(t *testing.T) {
-		_, err := provider.ResolveAgentDir("")
-		if err == nil {
-			t.Error("ResolveAgentDir(\"\") error = nil, want error")
-		}
-	})
+			if tt.checkHomePrefix {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					t.Fatalf("os.UserHomeDir() error = %v", err)
+				}
+				expected := filepath.Join(home, ".github", "skills")
+				if dir != expected {
+					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
+				}
+			}
+		})
+	}
 }
 
 func TestCopilotAgentAdapter_AgentName(t *testing.T) {
-	provider := adapter.NewCopilotAgentAdapter()
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should return copilot",
+			want: "copilot",
+		},
+	}
 
-	name := provider.AgentName()
-	if name != "copilot" {
-		t.Errorf("AgentName() = %q, want \"copilot\"", name)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := adapter.NewCopilotAgentAdapter()
+			if got := provider.AgentName(); got != tt.want {
+				t.Errorf("AgentName() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

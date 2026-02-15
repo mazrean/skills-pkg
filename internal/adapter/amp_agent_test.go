@@ -9,53 +9,90 @@ import (
 )
 
 func TestAmpAgentAdapter_ResolveAgentDir(t *testing.T) {
-	provider := adapter.NewAmpAgentAdapter()
+	tests := []struct {
+		name            string
+		agentName       string
+		checkSuffix     string
+		wantErr         bool
+		checkAbsolute   bool
+		checkHomePrefix bool
+	}{
+		{
+			name:            "amp agent",
+			agentName:       "amp",
+			wantErr:         false,
+			checkAbsolute:   true,
+			checkSuffix:     filepath.Join(".config", "agents", "skills"),
+			checkHomePrefix: true,
+		},
+		{
+			name:      "unsupported agent",
+			agentName: "unsupported",
+			wantErr:   true,
+		},
+		{
+			name:      "empty agent name",
+			agentName: "",
+			wantErr:   true,
+		},
+	}
 
-	t.Run("amp_agent", func(t *testing.T) {
-		dir, err := provider.ResolveAgentDir("amp")
-		if err != nil {
-			t.Fatalf("ResolveAgentDir(amp) error = %v, want nil", err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := adapter.NewAmpAgentAdapter()
 
-		if !filepath.IsAbs(dir) {
-			t.Errorf("ResolveAgentDir(amp) = %q, want absolute path", dir)
-		}
+			dir, err := provider.ResolveAgentDir(tt.agentName)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ResolveAgentDir(%q) error = %v, wantErr %v", tt.agentName, err, tt.wantErr)
+			}
 
-		expectedSuffix := filepath.Join(".config", "agents", "skills")
-		if !hasPathSuffix(dir, expectedSuffix) {
-			t.Errorf("ResolveAgentDir(amp) = %q, want path ending with %q", dir, expectedSuffix)
-		}
+			if err != nil {
+				// Error message should not be empty for errors
+				if err.Error() == "" {
+					t.Error("ResolveAgentDir error message is empty")
+				}
+				return
+			}
 
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("os.UserHomeDir() error = %v", err)
-		}
-		expected := filepath.Join(home, ".config", "agents", "skills")
-		if dir != expected {
-			t.Errorf("ResolveAgentDir(amp) = %q, want %q", dir, expected)
-		}
-	})
+			if tt.checkAbsolute && !filepath.IsAbs(dir) {
+				t.Errorf("ResolveAgentDir(%q) = %q, want absolute path", tt.agentName, dir)
+			}
 
-	t.Run("unsupported_agent", func(t *testing.T) {
-		_, err := provider.ResolveAgentDir("unsupported")
-		if err == nil {
-			t.Error("ResolveAgentDir(unsupported) error = nil, want error")
-		}
-	})
+			if tt.checkSuffix != "" && !hasPathSuffix(dir, tt.checkSuffix) {
+				t.Errorf("ResolveAgentDir(%q) = %q, want path ending with %q", tt.agentName, dir, tt.checkSuffix)
+			}
 
-	t.Run("empty_agent_name", func(t *testing.T) {
-		_, err := provider.ResolveAgentDir("")
-		if err == nil {
-			t.Error("ResolveAgentDir(\"\") error = nil, want error")
-		}
-	})
+			if tt.checkHomePrefix {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					t.Fatalf("os.UserHomeDir() error = %v", err)
+				}
+				expected := filepath.Join(home, ".config", "agents", "skills")
+				if dir != expected {
+					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
+				}
+			}
+		})
+	}
 }
 
 func TestAmpAgentAdapter_AgentName(t *testing.T) {
-	provider := adapter.NewAmpAgentAdapter()
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should return amp",
+			want: "amp",
+		},
+	}
 
-	name := provider.AgentName()
-	if name != "amp" {
-		t.Errorf("AgentName() = %q, want \"amp\"", name)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := adapter.NewAmpAgentAdapter()
+			if got := provider.AgentName(); got != tt.want {
+				t.Errorf("AgentName() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

@@ -16,319 +16,324 @@ import (
 func TestHashVerificationIntegration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Calculate_And_Verify_Hash_Integration", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		testFunc  func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string)
+		setupFunc func(t *testing.T) (ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string)
+		name      string
+	}{
+		{
+			name: "Calculate_And_Verify_Hash_Integration",
+			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *adapter.DirhashService, string) {
+				tempDir := t.TempDir()
+				configPath := filepath.Join(tempDir, ".skillspkg.toml")
+				installDir := filepath.Join(tempDir, "skills")
+				skillDir := filepath.Join(installDir, "test-skill")
 
-		// Setup: Create test skill directory
-		tempDir := t.TempDir()
-		configPath := filepath.Join(tempDir, ".skillspkg.toml")
-		installDir := filepath.Join(tempDir, "skills")
-		skillDir := filepath.Join(installDir, "test-skill")
+				err := os.MkdirAll(skillDir, 0o755)
+				if err != nil {
+					t.Fatalf("Failed to create skill directory: %v", err)
+				}
 
-		err := os.MkdirAll(skillDir, 0o755)
-		if err != nil {
-			t.Fatalf("Failed to create skill directory: %v", err)
-		}
+				testFiles := map[string]string{
+					"SKILL.md":        "# Test Skill\nDescription of the skill",
+					"skill.go":        "package skill\n\nfunc Execute() {}",
+					"config.toml":     "name = \"test-skill\"",
+					"subdir/test.txt": "test content",
+				}
 
-		// Create test files in skill directory
-		testFiles := map[string]string{
-			"SKILL.md":      "# Test Skill\nDescription of the skill",
-			"skill.go":      "package skill\n\nfunc Execute() {}",
-			"config.toml":   "name = \"test-skill\"",
-			"subdir/test.txt": "test content",
-		}
+				for path, content := range testFiles {
+					fullPath := filepath.Join(skillDir, path)
+					dir := filepath.Dir(fullPath)
+					if mkdirErr := os.MkdirAll(dir, 0o755); mkdirErr != nil {
+						t.Fatalf("Failed to create directory %s: %v", dir, mkdirErr)
+					}
+					if writeErr := os.WriteFile(fullPath, []byte(content), 0o644); writeErr != nil {
+						t.Fatalf("Failed to create file %s: %v", path, writeErr)
+					}
+				}
 
-		for path, content := range testFiles {
-			fullPath := filepath.Join(skillDir, path)
-			dir := filepath.Dir(fullPath)
-			if mkdirErr := os.MkdirAll(dir, 0o755); mkdirErr != nil {
-				t.Fatalf("Failed to create directory %s: %v", dir, mkdirErr)
-			}
-			if writeErr := os.WriteFile(fullPath, []byte(content), 0o644); writeErr != nil {
-				t.Fatalf("Failed to create file %s: %v", path, writeErr)
-			}
-		}
+				ctx := context.Background()
+				configManager := domain.NewConfigManager(configPath)
+				err = configManager.Initialize(ctx, []string{installDir})
+				if err != nil {
+					t.Fatalf("Initialize failed: %v", err)
+				}
 
-		ctx := context.Background()
+				hashService := adapter.NewDirhashService()
+				return ctx, configManager, hashService, skillDir
+			},
+			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string) {
+				skill := &domain.Skill{
+					Name:      "test-skill",
+					Source:    "git",
+					URL:       skillDir,
+					Version:   "1.0.0",
+					HashAlgo:  "sha256",
+					HashValue: "placeholder",
+				}
 
-		// Initialize configuration
-		configManager := domain.NewConfigManager(configPath)
-		err = configManager.Initialize(ctx, []string{installDir})
-		if err != nil {
-			t.Fatalf("Initialize failed: %v", err)
-		}
+				err := configManager.AddSkill(ctx, skill)
+				if err != nil {
+					t.Fatalf("AddSkill failed: %v", err)
+				}
 
-		// Add skill with placeholder hash
-		skill := &domain.Skill{
-			Name:      "test-skill",
-			Source:    "git",
-			URL:       skillDir,
-			Version:   "1.0.0",
-			HashAlgo:  "sha256",
-			HashValue: "placeholder",
-		}
+				hashVerifier := domain.NewHashVerifier(configManager, hashService)
+				hashResult, err := hashService.CalculateHash(ctx, skillDir)
+				if err != nil {
+					t.Fatalf("CalculateHash failed: %v", err)
+				}
 
-		err = configManager.AddSkill(ctx, skill)
-		if err != nil {
-			t.Fatalf("AddSkill failed: %v", err)
-		}
+				if hashResult.Algorithm != "sha256" {
+					t.Errorf("Expected algorithm sha256, got %s", hashResult.Algorithm)
+				}
 
-		// Setup hash service and verifier
-		hashService := adapter.NewDirhashService()
-		hashVerifier := domain.NewHashVerifier(configManager, hashService)
+				if hashResult.Value == "" {
+					t.Error("Hash value is empty")
+				}
 
-		// Test: Calculate hash
-		hashResult, err := hashService.CalculateHash(ctx, skillDir)
-		if err != nil {
-			t.Fatalf("CalculateHash failed: %v", err)
-		}
+				skill.HashValue = hashResult.Value
+				err = configManager.UpdateSkill(ctx, skill)
+				if err != nil {
+					t.Fatalf("UpdateSkill failed: %v", err)
+				}
 
-		if hashResult.Algorithm != "sha256" {
-			t.Errorf("Expected algorithm sha256, got %s", hashResult.Algorithm)
-		}
+				verifyResult, err := hashVerifier.Verify(ctx, "test-skill", skillDir)
+				if err != nil {
+					t.Fatalf("Verify failed: %v", err)
+				}
 
-		if hashResult.Value == "" {
-			t.Error("Hash value is empty")
-		}
+				if !verifyResult.Match {
+					t.Errorf("Hash verification failed: expected %s, got %s\nSkill dir: %s", verifyResult.Expected, verifyResult.Actual, skillDir)
+				}
+			},
+		},
+		{
+			name: "Detect_Tampering_Integration",
+			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *adapter.DirhashService, string) {
+				tempDir := t.TempDir()
+				configPath := filepath.Join(tempDir, ".skillspkg.toml")
+				installDir := filepath.Join(tempDir, "skills")
+				skillDir := filepath.Join(installDir, "tamper-skill")
 
-		// Update skill with calculated hash
-		skill.HashValue = hashResult.Value
-		err = configManager.UpdateSkill(ctx, skill)
-		if err != nil {
-			t.Fatalf("UpdateSkill failed: %v", err)
-		}
+				err := os.MkdirAll(skillDir, 0o755)
+				if err != nil {
+					t.Fatalf("Failed to create skill directory: %v", err)
+				}
 
-		// Test: Verify hash directly on the skill directory (should pass)
-		// Verify expects the skill directory path, not the parent directory
-		verifyResult, err := hashVerifier.Verify(ctx, "test-skill", skillDir)
-		if err != nil {
-			t.Fatalf("Verify failed: %v", err)
-		}
+				testFile := filepath.Join(skillDir, "skill.go")
+				originalContent := "package skill\n\nfunc Execute() {}"
+				err = os.WriteFile(testFile, []byte(originalContent), 0o644)
+				if err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
 
-		if !verifyResult.Match {
-			t.Errorf("Hash verification failed: expected %s, got %s\nSkill dir: %s", verifyResult.Expected, verifyResult.Actual, skillDir)
-		}
-	})
+				ctx := context.Background()
+				hashService := adapter.NewDirhashService()
+				originalHash, err := hashService.CalculateHash(ctx, skillDir)
+				if err != nil {
+					t.Fatalf("CalculateHash failed: %v", err)
+				}
 
-	t.Run("Detect_Tampering_Integration", func(t *testing.T) {
-		t.Parallel()
+				configManager := domain.NewConfigManager(configPath)
+				err = configManager.Initialize(ctx, []string{installDir})
+				if err != nil {
+					t.Fatalf("Initialize failed: %v", err)
+				}
 
-		// Setup: Create test skill directory
-		tempDir := t.TempDir()
-		configPath := filepath.Join(tempDir, ".skillspkg.toml")
-		installDir := filepath.Join(tempDir, "skills")
-		skillDir := filepath.Join(installDir, "tamper-skill")
+				skill := &domain.Skill{
+					Name:      "tamper-skill",
+					Source:    "git",
+					URL:       skillDir,
+					Version:   "1.0.0",
+					HashAlgo:  "sha256",
+					HashValue: originalHash.Value,
+				}
 
-		err := os.MkdirAll(skillDir, 0o755)
-		if err != nil {
-			t.Fatalf("Failed to create skill directory: %v", err)
-		}
+				err = configManager.AddSkill(ctx, skill)
+				if err != nil {
+					t.Fatalf("AddSkill failed: %v", err)
+				}
 
-		// Create test file
-		testFile := filepath.Join(skillDir, "skill.go")
-		originalContent := "package skill\n\nfunc Execute() {}"
-		err = os.WriteFile(testFile, []byte(originalContent), 0o644)
-		if err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
+				return ctx, configManager, hashService, skillDir
+			},
+			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string) {
+				testFile := filepath.Join(skillDir, "skill.go")
+				tamperedContent := "package skill\n\n// MALICIOUS CODE\nfunc Execute() {}"
+				err := os.WriteFile(testFile, []byte(tamperedContent), 0o644)
+				if err != nil {
+					t.Fatalf("Failed to tamper file: %v", err)
+				}
 
-		ctx := context.Background()
+				hashVerifier := domain.NewHashVerifier(configManager, hashService)
+				verifyResult, err := hashVerifier.Verify(ctx, "tamper-skill", skillDir)
+				if err != nil {
+					t.Fatalf("Verify failed: %v", err)
+				}
 
-		// Calculate hash of original content
-		hashService := adapter.NewDirhashService()
-		originalHash, err := hashService.CalculateHash(ctx, skillDir)
-		if err != nil {
-			t.Fatalf("CalculateHash failed: %v", err)
-		}
+				if verifyResult.Match {
+					t.Error("Hash verification passed for tampered file - tampering was not detected")
+				}
 
-		// Initialize configuration with original hash
-		configManager := domain.NewConfigManager(configPath)
-		err = configManager.Initialize(ctx, []string{installDir})
-		if err != nil {
-			t.Fatalf("Initialize failed: %v", err)
-		}
+				if verifyResult.Expected == verifyResult.Actual {
+					t.Error("Expected and actual hash should be different for tampered file")
+				}
+			},
+		},
+		{
+			name: "Verify_All_Skills_Integration",
+			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *adapter.DirhashService, string) {
+				tempDir := t.TempDir()
+				configPath := filepath.Join(tempDir, ".skillspkg.toml")
+				installDir := filepath.Join(tempDir, "skills")
 
-		skill := &domain.Skill{
-			Name:      "tamper-skill",
-			Source:    "git",
-			URL:       skillDir,
-			Version:   "1.0.0",
-			HashAlgo:  "sha256",
-			HashValue: originalHash.Value,
-		}
+				ctx := context.Background()
+				configManager := domain.NewConfigManager(configPath)
+				err := configManager.Initialize(ctx, []string{installDir})
+				if err != nil {
+					t.Fatalf("Initialize failed: %v", err)
+				}
 
-		err = configManager.AddSkill(ctx, skill)
-		if err != nil {
-			t.Fatalf("AddSkill failed: %v", err)
-		}
+				hashService := adapter.NewDirhashService()
+				numSkills := 3
 
-		// Test: Tamper with file content
-		tamperedContent := "package skill\n\n// MALICIOUS CODE\nfunc Execute() {}"
-		err = os.WriteFile(testFile, []byte(tamperedContent), 0o644)
-		if err != nil {
-			t.Fatalf("Failed to tamper file: %v", err)
-		}
+				for i := range numSkills {
+					skillName := filepath.Join(installDir, filepath.Base(tempDir)+"-skill-"+string(rune('A'+i)))
+					skillDir := filepath.Join(installDir, filepath.Base(skillName))
 
-		// Test: Verify hash (should fail)
-		hashVerifier := domain.NewHashVerifier(configManager, hashService)
-		verifyResult, err := hashVerifier.Verify(ctx, "tamper-skill", skillDir)
-		if err != nil {
-			t.Fatalf("Verify failed: %v", err)
-		}
+					if mkdirErr := os.MkdirAll(skillDir, 0o755); mkdirErr != nil {
+						t.Fatalf("Failed to create skill directory %s: %v", skillDir, mkdirErr)
+					}
 
-		if verifyResult.Match {
-			t.Error("Hash verification passed for tampered file - tampering was not detected")
-		}
+					testFile := filepath.Join(skillDir, "skill.go")
+					content := "package skill" + string(rune('A'+i))
+					if writeErr := os.WriteFile(testFile, []byte(content), 0o644); writeErr != nil {
+						t.Fatalf("Failed to create test file: %v", writeErr)
+					}
 
-		if verifyResult.Expected == verifyResult.Actual {
-			t.Error("Expected and actual hash should be different for tampered file")
-		}
-	})
+					hashResult, hashErr := hashService.CalculateHash(ctx, skillDir)
+					if hashErr != nil {
+						t.Fatalf("CalculateHash failed: %v", hashErr)
+					}
 
-	t.Run("Verify_All_Skills_Integration", func(t *testing.T) {
-		t.Parallel()
+					skill := &domain.Skill{
+						Name:      filepath.Base(skillName),
+						Source:    "git",
+						URL:       skillDir,
+						Version:   "1.0.0",
+						HashAlgo:  "sha256",
+						HashValue: hashResult.Value,
+					}
 
-		// Setup: Create multiple test skill directories
-		tempDir := t.TempDir()
-		configPath := filepath.Join(tempDir, ".skillspkg.toml")
-		installDir := filepath.Join(tempDir, "skills")
+					err = configManager.AddSkill(ctx, skill)
+					if err != nil {
+						t.Fatalf("AddSkill failed: %v", err)
+					}
+				}
 
-		ctx := context.Background()
+				return ctx, configManager, hashService, installDir
+			},
+			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, installDir string) {
+				const numSkills = 3
 
-		configManager := domain.NewConfigManager(configPath)
-		err := configManager.Initialize(ctx, []string{installDir})
-		if err != nil {
-			t.Fatalf("Initialize failed: %v", err)
-		}
+				hashVerifier := domain.NewHashVerifier(configManager, hashService)
+				summary, err := hashVerifier.VerifyAll(ctx)
+				if err != nil {
+					t.Fatalf("VerifyAll failed: %v", err)
+				}
 
-		hashService := adapter.NewDirhashService()
+				if summary.TotalSkills != numSkills {
+					t.Errorf("Expected %d total skills, got %d", numSkills, summary.TotalSkills)
+				}
 
-		// Create multiple skills
-		numSkills := 3
-		skills := make([]*domain.Skill, numSkills)
+				if summary.SuccessCount != numSkills {
+					t.Errorf("Expected %d successful verifications, got %d", numSkills, summary.SuccessCount)
+				}
 
-		for i := range numSkills {
-			skillName := filepath.Join(installDir, filepath.Base(tempDir)+"-skill-"+string(rune('A'+i)))
-			skillDir := filepath.Join(installDir, filepath.Base(skillName))
+				if summary.FailureCount != 0 {
+					t.Errorf("Expected 0 failures, got %d", summary.FailureCount)
+				}
 
-			if mkdirErr := os.MkdirAll(skillDir, 0o755); mkdirErr != nil {
-				t.Fatalf("Failed to create skill directory %s: %v", skillDir, mkdirErr)
-			}
+				config, err := configManager.Load(ctx)
+				if err != nil {
+					t.Fatalf("Load config failed: %v", err)
+				}
 
-			testFile := filepath.Join(skillDir, "skill.go")
-			content := "package skill" + string(rune('A'+i))
-			if writeErr := os.WriteFile(testFile, []byte(content), 0o644); writeErr != nil {
-				t.Fatalf("Failed to create test file: %v", writeErr)
-			}
+				if len(config.Skills) > 1 {
+					tamperedSkillDir := filepath.Join(installDir, config.Skills[1].Name)
+					tamperedFile := filepath.Join(tamperedSkillDir, "skill.go")
+					err = os.WriteFile(tamperedFile, []byte("tampered content"), 0o644)
+					if err != nil {
+						t.Fatalf("Failed to tamper file: %v", err)
+					}
 
-			hashResult, hashErr := hashService.CalculateHash(ctx, skillDir)
-			if hashErr != nil {
-				t.Fatalf("CalculateHash failed: %v", hashErr)
-			}
+					summary, err = hashVerifier.VerifyAll(ctx)
+					if err != nil {
+						t.Fatalf("VerifyAll failed: %v", err)
+					}
 
-			skills[i] = &domain.Skill{
-				Name:      filepath.Base(skillName),
-				Source:    "git",
-				URL:       skillDir,
-				Version:   "1.0.0",
-				HashAlgo:  "sha256",
-				HashValue: hashResult.Value,
-			}
+					if summary.SuccessCount != numSkills-1 {
+						t.Errorf("Expected %d successful verifications, got %d", numSkills-1, summary.SuccessCount)
+					}
 
-			err = configManager.AddSkill(ctx, skills[i])
-			if err != nil {
-				t.Fatalf("AddSkill failed: %v", err)
-			}
-		}
+					if summary.FailureCount != 1 {
+						t.Errorf("Expected 1 failure, got %d", summary.FailureCount)
+					}
+				}
+			},
+		},
+		{
+			name: "Hash_Algorithm_Consistency",
+			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *adapter.DirhashService, string) {
+				tempDir := t.TempDir()
+				skillDir := filepath.Join(tempDir, "test-skill")
 
-		// Test: Verify all skills
-		hashVerifier := domain.NewHashVerifier(configManager, hashService)
-		summary, err := hashVerifier.VerifyAll(ctx)
-		if err != nil {
-			t.Fatalf("VerifyAll failed: %v", err)
-		}
+				err := os.MkdirAll(skillDir, 0o755)
+				if err != nil {
+					t.Fatalf("Failed to create skill directory: %v", err)
+				}
 
-		// Verify: All skills passed verification
-		if summary.TotalSkills != numSkills {
-			t.Errorf("Expected %d total skills, got %d", numSkills, summary.TotalSkills)
-		}
+				testFile := filepath.Join(skillDir, "test.txt")
+				content := "test content"
+				err = os.WriteFile(testFile, []byte(content), 0o644)
+				if err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
 
-		if summary.SuccessCount != numSkills {
-			t.Errorf("Expected %d successful verifications, got %d", numSkills, summary.SuccessCount)
-		}
+				ctx := context.Background()
+				hashService := adapter.NewDirhashService()
+				return ctx, nil, hashService, skillDir
+			},
+			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string) {
+				hash1, err := hashService.CalculateHash(ctx, skillDir)
+				if err != nil {
+					t.Fatalf("First CalculateHash failed: %v", err)
+				}
 
-		if summary.FailureCount != 0 {
-			t.Errorf("Expected 0 failures, got %d", summary.FailureCount)
-		}
+				hash2, err := hashService.CalculateHash(ctx, skillDir)
+				if err != nil {
+					t.Fatalf("Second CalculateHash failed: %v", err)
+				}
 
-		// Test: Tamper with one skill
-		tamperedSkillDir := filepath.Join(installDir, skills[1].Name)
-		tamperedFile := filepath.Join(tamperedSkillDir, "skill.go")
-		err = os.WriteFile(tamperedFile, []byte("tampered content"), 0o644)
-		if err != nil {
-			t.Fatalf("Failed to tamper file: %v", err)
-		}
+				if hash1.Value != hash2.Value {
+					t.Errorf("Hash values are inconsistent: %s != %s", hash1.Value, hash2.Value)
+				}
 
-		// Test: Verify all skills again
-		summary, err = hashVerifier.VerifyAll(ctx)
-		if err != nil {
-			t.Fatalf("VerifyAll failed: %v", err)
-		}
+				if hash1.Algorithm != hash2.Algorithm {
+					t.Errorf("Hash algorithms are inconsistent: %s != %s", hash1.Algorithm, hash2.Algorithm)
+				}
 
-		// Verify: One skill failed verification
-		if summary.SuccessCount != numSkills-1 {
-			t.Errorf("Expected %d successful verifications, got %d", numSkills-1, summary.SuccessCount)
-		}
+				if hash1.Algorithm != "sha256" {
+					t.Errorf("Expected sha256 algorithm, got %s", hash1.Algorithm)
+				}
+			},
+		},
+	}
 
-		if summary.FailureCount != 1 {
-			t.Errorf("Expected 1 failure, got %d", summary.FailureCount)
-		}
-	})
-
-	t.Run("Hash_Algorithm_Consistency", func(t *testing.T) {
-		t.Parallel()
-
-		// Setup
-		tempDir := t.TempDir()
-		skillDir := filepath.Join(tempDir, "test-skill")
-
-		err := os.MkdirAll(skillDir, 0o755)
-		if err != nil {
-			t.Fatalf("Failed to create skill directory: %v", err)
-		}
-
-		testFile := filepath.Join(skillDir, "test.txt")
-		content := "test content"
-		err = os.WriteFile(testFile, []byte(content), 0o644)
-		if err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
-
-		ctx := context.Background()
-		hashService := adapter.NewDirhashService()
-
-		// Test: Calculate hash multiple times
-		hash1, err := hashService.CalculateHash(ctx, skillDir)
-		if err != nil {
-			t.Fatalf("First CalculateHash failed: %v", err)
-		}
-
-		hash2, err := hashService.CalculateHash(ctx, skillDir)
-		if err != nil {
-			t.Fatalf("Second CalculateHash failed: %v", err)
-		}
-
-		// Verify: Hash values are consistent
-		if hash1.Value != hash2.Value {
-			t.Errorf("Hash values are inconsistent: %s != %s", hash1.Value, hash2.Value)
-		}
-
-		if hash1.Algorithm != hash2.Algorithm {
-			t.Errorf("Hash algorithms are inconsistent: %s != %s", hash1.Algorithm, hash2.Algorithm)
-		}
-
-		if hash1.Algorithm != "sha256" {
-			t.Errorf("Expected sha256 algorithm, got %s", hash1.Algorithm)
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, configManager, hashService, skillDir := tt.setupFunc(t)
+			tt.testFunc(t, ctx, configManager, hashService, skillDir)
+		})
+	}
 }

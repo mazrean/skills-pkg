@@ -10,244 +10,246 @@ import (
 )
 
 func TestGitAdapter_SourceType(t *testing.T) {
-	adapter := NewGitAdapter()
-	expected := "git"
-	actual := adapter.SourceType()
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "should return git",
+			want: "git",
+		},
+	}
 
-	if actual != expected {
-		t.Errorf("SourceType() = %v, want %v", actual, expected)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := NewGitAdapter()
+			if got := adapter.SourceType(); got != tt.want {
+				t.Errorf("SourceType() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
-func TestGitAdapter_Download_WithTag(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
+func TestGitAdapter_Download(t *testing.T) {
+	tests := []struct {
+		checkVersion     func(t *testing.T, got string)
+		name             string
+		url              string
+		version          string
+		skipInShort      bool
+		wantErr          bool
+		expectErrOnRetry bool
+		checkPath        bool
+	}{
+		{
+			name:        "download with tag",
+			url:         "https://github.com/go-git/go-git.git",
+			version:     "v5.12.0",
+			skipInShort: true,
+			wantErr:     false,
+			checkVersion: func(t *testing.T, got string) {
+				if got != "v5.12.0" {
+					t.Errorf("Download() version = %v, want %v", got, "v5.12.0")
+				}
+			},
+			checkPath: true,
+		},
+		{
+			name:             "download with non-existent commit hash",
+			url:              "https://github.com/anthropics/anthropic-sdk-go.git",
+			version:          "abc123def456",
+			skipInShort:      true,
+			wantErr:          false,
+			expectErrOnRetry: true,
+			checkVersion: func(t *testing.T, got string) {
+				if got != "abc123def456" {
+					t.Errorf("Download() version = %v, want %v", got, "abc123def456")
+				}
+			},
+		},
+		{
+			name:        "download with latest",
+			url:         "https://github.com/anthropics/anthropic-sdk-go.git",
+			version:     "latest",
+			skipInShort: true,
+			wantErr:     false,
+			checkVersion: func(t *testing.T, got string) {
+				if got == "" || got == "latest" {
+					t.Errorf("Download() should return actual commit hash for latest, got %v", got)
+				}
+			},
+			checkPath: true,
+		},
+		{
+			name:    "invalid URL",
+			url:     "https://invalid-git-url-that-does-not-exist.com/repo.git",
+			version: "latest",
+			wantErr: true,
+		},
+		{
+			name:        "non-existent version",
+			url:         "https://github.com/anthropics/anthropic-sdk-go.git",
+			version:     "v999.999.999",
+			skipInShort: true,
+			wantErr:     true,
+		},
 	}
 
-	adapter := NewGitAdapter()
-	ctx := context.Background()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipInShort && testing.Short() {
+				t.Skip("Skipping integration test in short mode")
+			}
 
-	// Use a known public repository with tags for testing
-	// Using go-git itself which has tags
-	source := &port.Source{
-		Type: "git",
-		URL:  "https://github.com/go-git/go-git.git",
-	}
-	version := "v5.12.0"
+			adapter := NewGitAdapter()
+			ctx := context.Background()
 
-	// Create temp directory for download
-	tempDir := t.TempDir()
-	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
+			source := &port.Source{
+				Type: "git",
+				URL:  tt.url,
+			}
 
-	result, err := adapter.Download(ctx, source, version)
-	if err != nil {
-		t.Fatalf("Download() error = %v", err)
-	}
+			tempDir := t.TempDir()
+			_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
+			defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
 
-	if result.Version != version {
-		t.Errorf("Download() version = %v, want %v", result.Version, version)
-	}
+			result, err := adapter.Download(ctx, source, tt.version)
+			if tt.expectErrOnRetry && err != nil {
+				t.Logf("Download() error (expected for non-existent commit) = %v", err)
+				return
+			}
 
-	// Verify directory exists
-	if _, err := os.Stat(result.Path); os.IsNotExist(err) {
-		t.Errorf("Downloaded directory does not exist: %v", result.Path)
-	}
-}
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Download() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 
-func TestGitAdapter_Download_WithCommitHash(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+			if err != nil {
+				t.Logf("Error message: %v", err)
+				return
+			}
 
-	adapter := NewGitAdapter()
-	ctx := context.Background()
+			if tt.checkVersion != nil {
+				tt.checkVersion(t, result.Version)
+			}
 
-	source := &port.Source{
-		Type: "git",
-		URL:  "https://github.com/anthropics/anthropic-sdk-go.git",
-	}
-	// Use a known commit hash (first commit of the repo)
-	version := "abc123def456" // This will likely fail, which is expected
-
-	tempDir := t.TempDir()
-	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
-
-	result, err := adapter.Download(ctx, source, version)
-	if err != nil {
-		// For this test, we expect an error if the commit doesn't exist
-		// This is acceptable behavior
-		t.Logf("Download() error (expected for non-existent commit) = %v", err)
-		return
-	}
-
-	if result.Version != version {
-		t.Errorf("Download() version = %v, want %v", result.Version, version)
-	}
-}
-
-func TestGitAdapter_Download_WithLatest(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
-	adapter := NewGitAdapter()
-	ctx := context.Background()
-
-	source := &port.Source{
-		Type: "git",
-		URL:  "https://github.com/anthropics/anthropic-sdk-go.git",
-	}
-	version := "latest"
-
-	tempDir := t.TempDir()
-	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
-
-	result, err := adapter.Download(ctx, source, version)
-	if err != nil {
-		t.Fatalf("Download() error = %v", err)
-	}
-
-	// Version should be a commit hash when latest is specified
-	if result.Version == "" || result.Version == "latest" {
-		t.Errorf("Download() should return actual commit hash for latest, got %v", result.Version)
-	}
-
-	// Verify directory exists
-	if _, err := os.Stat(result.Path); os.IsNotExist(err) {
-		t.Errorf("Downloaded directory does not exist: %v", result.Path)
-	}
-}
-
-func TestGitAdapter_Download_InvalidURL(t *testing.T) {
-	adapter := NewGitAdapter()
-	ctx := context.Background()
-
-	source := &port.Source{
-		Type: "git",
-		URL:  "https://invalid-git-url-that-does-not-exist.com/repo.git",
-	}
-	version := "latest"
-
-	tempDir := t.TempDir()
-	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
-
-	_, err := adapter.Download(ctx, source, version)
-	if err == nil {
-		t.Error("Download() should fail with invalid URL")
-	}
-
-	// Error should be descriptive and include network failure information
-	if err != nil {
-		t.Logf("Error message (should include cause and recommendation): %v", err)
-	}
-}
-
-func TestGitAdapter_Download_NonExistentVersion(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
-	adapter := NewGitAdapter()
-	ctx := context.Background()
-
-	source := &port.Source{
-		Type: "git",
-		URL:  "https://github.com/anthropics/anthropic-sdk-go.git",
-	}
-	version := "v999.999.999" // Non-existent version
-
-	tempDir := t.TempDir()
-	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
-
-	_, err := adapter.Download(ctx, source, version)
-	if err == nil {
-		t.Error("Download() should fail with non-existent version")
-	}
-
-	// Error should be descriptive
-	if err != nil {
-		t.Logf("Error message (should indicate version not found): %v", err)
+			if tt.checkPath {
+				if _, err := os.Stat(result.Path); os.IsNotExist(err) {
+					t.Errorf("Downloaded directory does not exist: %v", result.Path)
+				}
+			}
+		})
 	}
 }
 
 func TestGitAdapter_GetLatestVersion(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
+	tests := []struct {
+		checkResult func(t *testing.T, version string)
+		name        string
+		url         string
+		skipInShort bool
+		wantErr     bool
+	}{
+		{
+			name:        "valid repository",
+			url:         "https://github.com/anthropics/anthropic-sdk-go.git",
+			skipInShort: true,
+			wantErr:     false,
+			checkResult: func(t *testing.T, version string) {
+				if version == "" {
+					t.Error("GetLatestVersion() should return a non-empty version")
+				}
+				t.Logf("Latest version: %v", version)
+			},
+		},
+		{
+			name:    "invalid URL",
+			url:     "https://invalid-git-url-that-does-not-exist.com/repo.git",
+			wantErr: true,
+			checkResult: func(t *testing.T, version string) {
+				// Error should be descriptive
+			},
+		},
 	}
 
-	adapter := NewGitAdapter()
-	ctx := context.Background()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipInShort && testing.Short() {
+				t.Skip("Skipping integration test in short mode")
+			}
 
-	source := &port.Source{
-		Type: "git",
-		URL:  "https://github.com/anthropics/anthropic-sdk-go.git",
-	}
+			adapter := NewGitAdapter()
+			ctx := context.Background()
 
-	version, err := adapter.GetLatestVersion(ctx, source)
-	if err != nil {
-		t.Fatalf("GetLatestVersion() error = %v", err)
-	}
+			source := &port.Source{
+				Type: "git",
+				URL:  tt.url,
+			}
 
-	// Should return either a tag or commit hash
-	if version == "" {
-		t.Error("GetLatestVersion() should return a non-empty version")
-	}
+			version, err := adapter.GetLatestVersion(ctx, source)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetLatestVersion() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 
-	t.Logf("Latest version: %v", version)
-}
+			if err != nil {
+				t.Logf("Error message (should include network error): %v", err)
+				return
+			}
 
-func TestGitAdapter_GetLatestVersion_InvalidURL(t *testing.T) {
-	adapter := NewGitAdapter()
-	ctx := context.Background()
-
-	source := &port.Source{
-		Type: "git",
-		URL:  "https://invalid-git-url-that-does-not-exist.com/repo.git",
-	}
-
-	_, err := adapter.GetLatestVersion(ctx, source)
-	if err == nil {
-		t.Error("GetLatestVersion() should fail with invalid URL")
-	}
-
-	// Error should be descriptive
-	if err != nil {
-		t.Logf("Error message (should include network error): %v", err)
+			if tt.checkResult != nil {
+				tt.checkResult(t, version)
+			}
+		})
 	}
 }
 
 func TestGitAdapter_Download_CleansUpOnError(t *testing.T) {
-	adapter := NewGitAdapter()
-	ctx := context.Background()
-
-	source := &port.Source{
-		Type: "git",
-		URL:  "https://invalid-git-url.com/repo.git",
+	tests := []struct {
+		name    string
+		url     string
+		version string
+		wantErr bool
+	}{
+		{
+			name:    "invalid URL should cleanup on error",
+			url:     "https://invalid-git-url.com/repo.git",
+			version: "latest",
+			wantErr: true,
+		},
 	}
 
-	tempDir := t.TempDir()
-	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := NewGitAdapter()
+			ctx := context.Background()
 
-	_, err := adapter.Download(ctx, source, "latest")
-	if err == nil {
-		t.Error("Download() should fail with invalid URL")
-	}
+			source := &port.Source{
+				Type: "git",
+				URL:  tt.url,
+			}
 
-	// Check that temp directory is cleaned up (or minimal files remain)
-	entries, err := os.ReadDir(tempDir)
-	if err != nil {
-		t.Fatalf("Failed to read temp dir: %v", err)
-	}
+			tempDir := t.TempDir()
+			_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
+			defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
 
-	// There might be some cleanup artifacts, but there should not be a complete repository
-	for _, entry := range entries {
-		path := filepath.Join(tempDir, entry.Name())
-		t.Logf("Remaining file/dir after error: %v", path)
+			_, err := adapter.Download(ctx, source, tt.version)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Download() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			// Check that temp directory is cleaned up (or minimal files remain)
+			entries, err := os.ReadDir(tempDir)
+			if err != nil {
+				t.Fatalf("Failed to read temp dir: %v", err)
+			}
+
+			// There might be some cleanup artifacts, but there should not be a complete repository
+			for _, entry := range entries {
+				path := filepath.Join(tempDir, entry.Name())
+				t.Logf("Remaining file/dir after error: %v", path)
+			}
+		})
 	}
 }
