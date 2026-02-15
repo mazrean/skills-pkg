@@ -40,6 +40,8 @@ func (s *Skill) Validate() error {
 		"git":       true,
 		"npm":       true,
 		"go-module": true,
+		"pip":       true,
+		"cargo":     true,
 	}
 	if !validSources[s.Source] {
 		return ErrInvalidSource
