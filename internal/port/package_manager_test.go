@@ -21,8 +21,8 @@ func TestPackageManagerInterface(t *testing.T) {
 // Requirements: 11.4
 func TestSourceValidation(t *testing.T) {
 	tests := []struct {
-		name    string
 		source  *port.Source
+		name    string
 		wantErr bool
 	}{
 		{

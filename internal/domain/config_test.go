@@ -8,9 +8,9 @@ import (
 
 func TestSkill_Validate(t *testing.T) {
 	tests := []struct {
-		name    string
-		skill   *domain.Skill
 		wantErr error
+		skill   *domain.Skill
+		name    string
 	}{
 		{
 			name: "valid git source skill",
@@ -176,9 +176,9 @@ func TestConfig_HasSkill(t *testing.T) {
 
 func TestConfig_Validate(t *testing.T) {
 	tests := []struct {
-		name    string
-		config  *domain.Config
 		wantErr error
+		config  *domain.Config
+		name    string
 	}{
 		{
 			name: "valid config",
