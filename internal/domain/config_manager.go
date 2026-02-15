@@ -104,3 +104,119 @@ func (m *ConfigManager) Save(ctx context.Context, config *Config) error {
 
 	return nil
 }
+
+// AddSkill adds a new skill entry to the configuration.
+// It returns ErrSkillExists if a skill with the same name already exists.
+// Requirements: 2.2, 2.3, 2.4, 5.2, 12.2, 12.3
+func (m *ConfigManager) AddSkill(ctx context.Context, skill *Skill) error {
+	// Validate the skill before adding
+	if err := skill.Validate(); err != nil {
+		return fmt.Errorf("skill validation failed: %w", err)
+	}
+
+	// Load the current config
+	config, err := m.Load(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Check for duplicate skill names (requirement 2.2)
+	if config.HasSkill(skill.Name) {
+		return fmt.Errorf("%w: skill '%s' already exists in configuration", ErrSkillExists, skill.Name)
+	}
+
+	// Add the skill to the config
+	config.Skills = append(config.Skills, skill)
+
+	// Save the updated config
+	if err := m.Save(ctx, config); err != nil {
+		return fmt.Errorf("failed to save configuration after adding skill '%s': %w", skill.Name, err)
+	}
+
+	return nil
+}
+
+// UpdateSkill updates an existing skill entry in the configuration.
+// It returns ErrSkillNotFound if the skill does not exist.
+// Requirements: 2.2, 5.2, 12.2, 12.3
+func (m *ConfigManager) UpdateSkill(ctx context.Context, skill *Skill) error {
+	// Validate the skill before updating
+	if err := skill.Validate(); err != nil {
+		return fmt.Errorf("skill validation failed: %w", err)
+	}
+
+	// Load the current config
+	config, err := m.Load(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Find the skill to update
+	existingSkill := config.FindSkillByName(skill.Name)
+	if existingSkill == nil {
+		return fmt.Errorf("%w: skill '%s' not found in configuration", ErrSkillNotFound, skill.Name)
+	}
+
+	// Update the skill fields
+	existingSkill.Source = skill.Source
+	existingSkill.URL = skill.URL
+	existingSkill.Version = skill.Version
+	existingSkill.HashAlgo = skill.HashAlgo
+	existingSkill.HashValue = skill.HashValue
+	existingSkill.PackageManager = skill.PackageManager
+
+	// Save the updated config
+	if err := m.Save(ctx, config); err != nil {
+		return fmt.Errorf("failed to save configuration after updating skill '%s': %w", skill.Name, err)
+	}
+
+	return nil
+}
+
+// RemoveSkill removes a skill entry from the configuration.
+// It returns ErrSkillNotFound if the skill does not exist.
+// Requirements: 9.2, 12.2, 12.3
+func (m *ConfigManager) RemoveSkill(ctx context.Context, skillName string) error {
+	// Load the current config
+	config, err := m.Load(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Find the skill index
+	skillIndex := -1
+	for i, skill := range config.Skills {
+		if skill.Name == skillName {
+			skillIndex = i
+			break
+		}
+	}
+
+	// Check if skill exists
+	if skillIndex == -1 {
+		return fmt.Errorf("%w: skill '%s' not found in configuration", ErrSkillNotFound, skillName)
+	}
+
+	// Remove the skill from the slice
+	config.Skills = append(config.Skills[:skillIndex], config.Skills[skillIndex+1:]...)
+
+	// Save the updated config
+	if err := m.Save(ctx, config); err != nil {
+		return fmt.Errorf("failed to save configuration after removing skill '%s': %w", skillName, err)
+	}
+
+	return nil
+}
+
+// ListSkills returns all skills from the configuration.
+// Requirements: 8.1, 8.2, 12.2, 12.3
+func (m *ConfigManager) ListSkills(ctx context.Context) ([]*Skill, error) {
+	// Load the current config
+	config, err := m.Load(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Return the skills list
+	return config.Skills, nil
+}

@@ -206,7 +206,7 @@ func TestConfig_Validate(t *testing.T) {
 				},
 				InstallTargets: []string{"/path/to/dir"},
 			},
-			wantErr: domain.ErrDuplicateSkill,
+			wantErr: domain.ErrSkillExists,
 		},
 		{
 			name: "invalid skill in config",

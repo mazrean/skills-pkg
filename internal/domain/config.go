@@ -74,7 +74,7 @@ func (c *Config) Validate() error {
 	nameMap := make(map[string]bool)
 	for _, skill := range c.Skills {
 		if nameMap[skill.Name] {
-			return ErrDuplicateSkill
+			return ErrSkillExists
 		}
 		nameMap[skill.Name] = true
 

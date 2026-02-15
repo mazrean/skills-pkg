@@ -436,3 +436,492 @@ func TestConfigManager_Save(t *testing.T) {
 		})
 	}
 }
+
+// TestConfigManager_AddSkill tests the AddSkill method of ConfigManager.
+// Requirements: 2.2, 2.3, 2.4, 5.2
+func TestConfigManager_AddSkill(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupConfig *domain.Config
+		skill       *domain.Skill
+		wantErr     error
+		validate    func(t *testing.T, config *domain.Config)
+	}{
+		{
+			name: "successfully adds git skill",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills"},
+				Skills:         []*domain.Skill{},
+			},
+			skill: &domain.Skill{
+				Name:      "test-skill",
+				Source:    "git",
+				URL:       "https://github.com/test/skill.git",
+				Version:   "v1.0.0",
+				HashAlgo:  "sha256",
+				HashValue: "abc123",
+			},
+			wantErr: nil,
+			validate: func(t *testing.T, config *domain.Config) {
+				if len(config.Skills) != 1 {
+					t.Fatalf("expected 1 skill, got %d", len(config.Skills))
+				}
+				skill := config.Skills[0]
+				if skill.Name != "test-skill" {
+					t.Errorf("expected skill name 'test-skill', got '%s'", skill.Name)
+				}
+				if skill.Source != "git" {
+					t.Errorf("expected source 'git', got '%s'", skill.Source)
+				}
+				if skill.Version != "v1.0.0" {
+					t.Errorf("expected version 'v1.0.0', got '%s'", skill.Version)
+				}
+			},
+		},
+		{
+			name: "successfully adds npm skill with package manager",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills"},
+				Skills:         []*domain.Skill{},
+			},
+			skill: &domain.Skill{
+				Name:           "npm-skill",
+				Source:         "npm",
+				URL:            "example-package",
+				Version:        "1.0.0",
+				HashAlgo:       "sha256",
+				HashValue:      "def456",
+				PackageManager: "npm",
+			},
+			wantErr: nil,
+			validate: func(t *testing.T, config *domain.Config) {
+				if len(config.Skills) != 1 {
+					t.Fatalf("expected 1 skill, got %d", len(config.Skills))
+				}
+				skill := config.Skills[0]
+				if skill.PackageManager != "npm" {
+					t.Errorf("expected package manager 'npm', got '%s'", skill.PackageManager)
+				}
+			},
+		},
+		{
+			name: "returns error when skill already exists",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills"},
+				Skills: []*domain.Skill{
+					{
+						Name:      "existing-skill",
+						Source:    "git",
+						URL:       "https://github.com/existing/skill.git",
+						Version:   "v1.0.0",
+						HashAlgo:  "sha256",
+						HashValue: "xyz789",
+					},
+				},
+			},
+			skill: &domain.Skill{
+				Name:      "existing-skill",
+				Source:    "git",
+				URL:       "https://github.com/new/skill.git",
+				Version:   "v2.0.0",
+				HashAlgo:  "sha256",
+				HashValue: "abc123",
+			},
+			wantErr: domain.ErrSkillExists,
+			validate: func(t *testing.T, config *domain.Config) {
+				// Original skill should remain unchanged
+				if len(config.Skills) != 1 {
+					t.Errorf("expected 1 skill, got %d", len(config.Skills))
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary directory for testing
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, ".skillspkg.toml")
+
+			// Create ConfigManager
+			manager := domain.NewConfigManager(configPath)
+
+			// Setup: Save initial config
+			ctx := context.Background()
+			if err := manager.Save(ctx, tt.setupConfig); err != nil {
+				t.Fatalf("failed to setup test: %v", err)
+			}
+
+			// Execute AddSkill
+			err := manager.AddSkill(ctx, tt.skill)
+
+			// Verify error
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Errorf("ConfigManager.AddSkill() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			} else if err != nil {
+				t.Errorf("ConfigManager.AddSkill() unexpected error = %v", err)
+				return
+			}
+
+			// Load config to validate
+			config, err := manager.Load(ctx)
+			if err != nil {
+				t.Fatalf("failed to load config after AddSkill: %v", err)
+			}
+
+			// Validate the config
+			if tt.validate != nil {
+				tt.validate(t, config)
+			}
+		})
+	}
+}
+
+// TestConfigManager_UpdateSkill tests the UpdateSkill method of ConfigManager.
+// Requirements: 2.2, 5.2
+func TestConfigManager_UpdateSkill(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupConfig *domain.Config
+		skill       *domain.Skill
+		wantErr     error
+		validate    func(t *testing.T, config *domain.Config)
+	}{
+		{
+			name: "successfully updates skill version and hash",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills"},
+				Skills: []*domain.Skill{
+					{
+						Name:      "test-skill",
+						Source:    "git",
+						URL:       "https://github.com/test/skill.git",
+						Version:   "v1.0.0",
+						HashAlgo:  "sha256",
+						HashValue: "old-hash",
+					},
+				},
+			},
+			skill: &domain.Skill{
+				Name:      "test-skill",
+				Source:    "git",
+				URL:       "https://github.com/test/skill.git",
+				Version:   "v2.0.0",
+				HashAlgo:  "sha256",
+				HashValue: "new-hash",
+			},
+			wantErr: nil,
+			validate: func(t *testing.T, config *domain.Config) {
+				if len(config.Skills) != 1 {
+					t.Fatalf("expected 1 skill, got %d", len(config.Skills))
+				}
+				skill := config.Skills[0]
+				if skill.Version != "v2.0.0" {
+					t.Errorf("expected version 'v2.0.0', got '%s'", skill.Version)
+				}
+				if skill.HashValue != "new-hash" {
+					t.Errorf("expected hash 'new-hash', got '%s'", skill.HashValue)
+				}
+			},
+		},
+		{
+			name: "returns error when skill not found",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills"},
+				Skills:         []*domain.Skill{},
+			},
+			skill: &domain.Skill{
+				Name:      "nonexistent-skill",
+				Source:    "git",
+				URL:       "https://github.com/test/skill.git",
+				Version:   "v1.0.0",
+				HashAlgo:  "sha256",
+				HashValue: "abc123",
+			},
+			wantErr: domain.ErrSkillNotFound,
+			validate: func(t *testing.T, config *domain.Config) {
+				if len(config.Skills) != 0 {
+					t.Errorf("expected 0 skills, got %d", len(config.Skills))
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary directory for testing
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, ".skillspkg.toml")
+
+			// Create ConfigManager
+			manager := domain.NewConfigManager(configPath)
+
+			// Setup: Save initial config
+			ctx := context.Background()
+			if err := manager.Save(ctx, tt.setupConfig); err != nil {
+				t.Fatalf("failed to setup test: %v", err)
+			}
+
+			// Execute UpdateSkill
+			err := manager.UpdateSkill(ctx, tt.skill)
+
+			// Verify error
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Errorf("ConfigManager.UpdateSkill() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			} else if err != nil {
+				t.Errorf("ConfigManager.UpdateSkill() unexpected error = %v", err)
+				return
+			}
+
+			// Load config to validate
+			config, err := manager.Load(ctx)
+			if err != nil {
+				t.Fatalf("failed to load config after UpdateSkill: %v", err)
+			}
+
+			// Validate the config
+			if tt.validate != nil {
+				tt.validate(t, config)
+			}
+		})
+	}
+}
+
+// TestConfigManager_RemoveSkill tests the RemoveSkill method of ConfigManager.
+// Requirements: 9.2
+func TestConfigManager_RemoveSkill(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupConfig *domain.Config
+		skillName   string
+		wantErr     error
+		validate    func(t *testing.T, config *domain.Config)
+	}{
+		{
+			name: "successfully removes skill",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills"},
+				Skills: []*domain.Skill{
+					{
+						Name:      "skill-to-remove",
+						Source:    "git",
+						URL:       "https://github.com/test/skill.git",
+						Version:   "v1.0.0",
+						HashAlgo:  "sha256",
+						HashValue: "abc123",
+					},
+					{
+						Name:      "skill-to-keep",
+						Source:    "git",
+						URL:       "https://github.com/test/other.git",
+						Version:   "v1.0.0",
+						HashAlgo:  "sha256",
+						HashValue: "def456",
+					},
+				},
+			},
+			skillName: "skill-to-remove",
+			wantErr:   nil,
+			validate: func(t *testing.T, config *domain.Config) {
+				if len(config.Skills) != 1 {
+					t.Fatalf("expected 1 skill remaining, got %d", len(config.Skills))
+				}
+				if config.Skills[0].Name != "skill-to-keep" {
+					t.Errorf("expected remaining skill to be 'skill-to-keep', got '%s'", config.Skills[0].Name)
+				}
+			},
+		},
+		{
+			name: "successfully removes last skill",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills"},
+				Skills: []*domain.Skill{
+					{
+						Name:      "only-skill",
+						Source:    "git",
+						URL:       "https://github.com/test/skill.git",
+						Version:   "v1.0.0",
+						HashAlgo:  "sha256",
+						HashValue: "abc123",
+					},
+				},
+			},
+			skillName: "only-skill",
+			wantErr:   nil,
+			validate: func(t *testing.T, config *domain.Config) {
+				if len(config.Skills) != 0 {
+					t.Errorf("expected 0 skills, got %d", len(config.Skills))
+				}
+			},
+		},
+		{
+			name: "returns error when skill not found",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills"},
+				Skills: []*domain.Skill{
+					{
+						Name:      "existing-skill",
+						Source:    "git",
+						URL:       "https://github.com/test/skill.git",
+						Version:   "v1.0.0",
+						HashAlgo:  "sha256",
+						HashValue: "abc123",
+					},
+				},
+			},
+			skillName: "nonexistent-skill",
+			wantErr:   domain.ErrSkillNotFound,
+			validate: func(t *testing.T, config *domain.Config) {
+				// Original skill should remain
+				if len(config.Skills) != 1 {
+					t.Errorf("expected 1 skill, got %d", len(config.Skills))
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary directory for testing
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, ".skillspkg.toml")
+
+			// Create ConfigManager
+			manager := domain.NewConfigManager(configPath)
+
+			// Setup: Save initial config
+			ctx := context.Background()
+			if err := manager.Save(ctx, tt.setupConfig); err != nil {
+				t.Fatalf("failed to setup test: %v", err)
+			}
+
+			// Execute RemoveSkill
+			err := manager.RemoveSkill(ctx, tt.skillName)
+
+			// Verify error
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Errorf("ConfigManager.RemoveSkill() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			} else if err != nil {
+				t.Errorf("ConfigManager.RemoveSkill() unexpected error = %v", err)
+				return
+			}
+
+			// Load config to validate
+			config, err := manager.Load(ctx)
+			if err != nil {
+				t.Fatalf("failed to load config after RemoveSkill: %v", err)
+			}
+
+			// Validate the config
+			if tt.validate != nil {
+				tt.validate(t, config)
+			}
+		})
+	}
+}
+
+// TestConfigManager_ListSkills tests the ListSkills method of ConfigManager.
+// Requirements: 8.1, 8.2
+func TestConfigManager_ListSkills(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupConfig *domain.Config
+		wantErr     error
+		validate    func(t *testing.T, skills []*domain.Skill)
+	}{
+		{
+			name: "successfully lists all skills",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills"},
+				Skills: []*domain.Skill{
+					{
+						Name:      "skill-1",
+						Source:    "git",
+						URL:       "https://github.com/test/skill1.git",
+						Version:   "v1.0.0",
+						HashAlgo:  "sha256",
+						HashValue: "abc123",
+					},
+					{
+						Name:           "skill-2",
+						Source:         "npm",
+						URL:            "npm-package",
+						Version:        "2.0.0",
+						HashAlgo:       "sha256",
+						HashValue:      "def456",
+						PackageManager: "npm",
+					},
+				},
+			},
+			wantErr: nil,
+			validate: func(t *testing.T, skills []*domain.Skill) {
+				if len(skills) != 2 {
+					t.Fatalf("expected 2 skills, got %d", len(skills))
+				}
+				if skills[0].Name != "skill-1" {
+					t.Errorf("expected first skill name 'skill-1', got '%s'", skills[0].Name)
+				}
+				if skills[1].Name != "skill-2" {
+					t.Errorf("expected second skill name 'skill-2', got '%s'", skills[1].Name)
+				}
+				if skills[1].PackageManager != "npm" {
+					t.Errorf("expected package manager 'npm', got '%s'", skills[1].PackageManager)
+				}
+			},
+		},
+		{
+			name: "returns empty list when no skills",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills"},
+				Skills:         []*domain.Skill{},
+			},
+			wantErr: nil,
+			validate: func(t *testing.T, skills []*domain.Skill) {
+				if len(skills) != 0 {
+					t.Errorf("expected 0 skills, got %d", len(skills))
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary directory for testing
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, ".skillspkg.toml")
+
+			// Create ConfigManager
+			manager := domain.NewConfigManager(configPath)
+
+			// Setup: Save initial config
+			ctx := context.Background()
+			if err := manager.Save(ctx, tt.setupConfig); err != nil {
+				t.Fatalf("failed to setup test: %v", err)
+			}
+
+			// Execute ListSkills
+			skills, err := manager.ListSkills(ctx)
+
+			// Verify error
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Errorf("ConfigManager.ListSkills() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			} else if err != nil {
+				t.Errorf("ConfigManager.ListSkills() unexpected error = %v", err)
+				return
+			}
+
+			// Validate the skills list
+			if tt.validate != nil {
+				tt.validate(t, skills)
+			}
+		})
+	}
+}

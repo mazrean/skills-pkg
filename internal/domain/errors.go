@@ -24,8 +24,8 @@ var (
 	// ErrNetworkFailure indicates that a network request failed.
 	ErrNetworkFailure = errors.New("network request failed")
 
-	// ErrDuplicateSkill indicates that a skill with the same name already exists.
-	ErrDuplicateSkill = errors.New("duplicate skill name")
+	// ErrSkillExists indicates that a skill with the same name already exists.
+	ErrSkillExists = errors.New("skill already exists")
 
 	// ErrInvalidSkill indicates that a skill has invalid field values.
 	ErrInvalidSkill = errors.New("invalid skill configuration")
