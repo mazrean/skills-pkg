@@ -46,7 +46,7 @@ func TestNewSkillManager(t *testing.T) {
 	hashService := &mockHashService{}
 	packageManagers := []port.PackageManager{
 		&mockPackageManager{sourceType: "git"},
-		&mockPackageManager{sourceType: "npm"},
+		&mockPackageManager{sourceType: "go-module"},
 	}
 
 	skillManager := NewSkillManager(configManager, hashService, packageManagers)
@@ -71,8 +71,8 @@ func TestSelectPackageManager_ValidSourceType(t *testing.T) {
 		},
 		{
 			name:       "select npm package manager",
-			sourceType: "npm",
-			wantType:   "npm",
+			sourceType: "go-module",
+			wantType:   "go-module",
 		},
 		{
 			name:       "select go-module package manager",
@@ -87,7 +87,7 @@ func TestSelectPackageManager_ValidSourceType(t *testing.T) {
 			hashService := &mockHashService{}
 			packageManagers := []port.PackageManager{
 				&mockPackageManager{sourceType: "git"},
-				&mockPackageManager{sourceType: "npm"},
+				&mockPackageManager{sourceType: "go-module"},
 				&mockPackageManager{sourceType: "go-module"},
 			}
 
@@ -112,7 +112,7 @@ func TestSelectPackageManager_UnsupportedSourceType(t *testing.T) {
 	hashService := &mockHashService{}
 	packageManagers := []port.PackageManager{
 		&mockPackageManager{sourceType: "git"},
-		&mockPackageManager{sourceType: "npm"},
+		&mockPackageManager{sourceType: "go-module"},
 	}
 
 	skillManager := NewSkillManager(configManager, hashService, packageManagers).(*skillManagerImpl)
@@ -546,7 +546,7 @@ func TestUpdate_SingleSkill(t *testing.T) {
 	// Add a skill
 	skill := &Skill{
 		Name:      "test-skill",
-		Source:    "npm",
+		Source:    "go-module",
 		URL:       "test-package",
 		Version:   "1.0.0",
 		HashAlgo:  "sha256",
@@ -558,7 +558,7 @@ func TestUpdate_SingleSkill(t *testing.T) {
 
 	// Create mock package manager that returns a new version
 	mockPM := &mockPackageManagerWithUpdate{
-		sourceType:    "npm",
+		sourceType:    "go-module",
 		latestVersion: "2.0.0",
 		downloadPath:  tempDir + "/download",
 	}
@@ -629,7 +629,7 @@ func TestUpdate_AllSkills(t *testing.T) {
 	skills := []*Skill{
 		{
 			Name:      "skill1",
-			Source:    "npm",
+			Source:    "go-module",
 			URL:       "package1",
 			Version:   "1.0.0",
 			HashAlgo:  "sha256",
@@ -652,7 +652,7 @@ func TestUpdate_AllSkills(t *testing.T) {
 
 	// Create mock package managers
 	npmPM := &mockPackageManagerWithUpdate{
-		sourceType:    "npm",
+		sourceType:    "go-module",
 		latestVersion: "2.0.0",
 		downloadPath:  tempDir + "/npm-download",
 	}
@@ -734,7 +734,7 @@ func TestUpdate_NetworkError(t *testing.T) {
 	// Add a skill
 	skill := &Skill{
 		Name:      "test-skill",
-		Source:    "npm",
+		Source:    "go-module",
 		URL:       "test-package",
 		Version:   "1.0.0",
 		HashAlgo:  "sha256",
@@ -746,7 +746,7 @@ func TestUpdate_NetworkError(t *testing.T) {
 
 	// Create mock package manager that returns a network error
 	mockPM := &mockPackageManagerWithError{
-		sourceType: "npm",
+		sourceType: "go-module",
 		err:        ErrNetworkFailure,
 	}
 

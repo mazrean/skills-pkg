@@ -69,7 +69,7 @@ func NewSkillManager(
 func (s *skillManagerImpl) selectPackageManager(sourceType string) (port.PackageManager, error) {
 	// Validate that source type is not empty
 	if sourceType == "" {
-		return nil, fmt.Errorf("%w: source type is empty. Supported types: git, npm, go-module, pip, cargo", ErrInvalidSource)
+		return nil, fmt.Errorf("%w: source type is empty. Supported types: git, go-module", ErrInvalidSource)
 	}
 
 	// Find the package manager that matches the source type
@@ -80,7 +80,7 @@ func (s *skillManagerImpl) selectPackageManager(sourceType string) (port.Package
 	}
 
 	// No matching package manager found
-	return nil, fmt.Errorf("%w: source type '%s' is not supported. Supported types: git, npm, go-module, pip, cargo", ErrInvalidSource, sourceType)
+	return nil, fmt.Errorf("%w: source type '%s' is not supported. Supported types: git, go-module", ErrInvalidSource, sourceType)
 }
 
 // Install installs the specified skill.

@@ -4,3 +4,4 @@
 /.worktrees
 coverage.out
 dist/
+skills-pkg

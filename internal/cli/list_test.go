@@ -47,17 +47,17 @@ func TestListCmd_Run(t *testing.T) {
 					t.Fatalf("failed to add git skill: %v", err)
 				}
 
-				// Add npm skill
-				npmSkill := &domain.Skill{
-					Name:      "npm-skill",
-					Source:    "npm",
-					URL:       "example-npm-skill",
-					Version:   "2.0.0",
+				// Add go-module skill
+				goModSkill := &domain.Skill{
+					Name:      "go-module-skill",
+					Source:    "go-module",
+					URL:       "github.com/example/skill",
+					Version:   "v2.0.0",
 					HashAlgo:  "sha256",
 					HashValue: "def456",
 				}
-				if err := cm.AddSkill(context.Background(), npmSkill); err != nil {
-					t.Fatalf("failed to add npm skill: %v", err)
+				if err := cm.AddSkill(context.Background(), goModSkill); err != nil {
+					t.Fatalf("failed to add go-module skill: %v", err)
 				}
 
 				// Add go-module skill
@@ -83,8 +83,8 @@ func TestListCmd_Run(t *testing.T) {
 				if !strings.Contains(output, "git-skill") {
 					t.Errorf("output should contain 'git-skill', got: %s", output)
 				}
-				if !strings.Contains(output, "npm-skill") {
-					t.Errorf("output should contain 'npm-skill', got: %s", output)
+				if !strings.Contains(output, "go-module-skill") {
+					t.Errorf("output should contain 'go-module-skill', got: %s", output)
 				}
 				if !strings.Contains(output, "go-skill") {
 					t.Errorf("output should contain 'go-skill', got: %s", output)
@@ -94,8 +94,8 @@ func TestListCmd_Run(t *testing.T) {
 				if !strings.Contains(output, "git") {
 					t.Errorf("output should contain source 'git', got: %s", output)
 				}
-				if !strings.Contains(output, "npm") {
-					t.Errorf("output should contain source 'npm', got: %s", output)
+				if !strings.Contains(output, "go-module") {
+					t.Errorf("output should contain source 'go-module', got: %s", output)
 				}
 				if !strings.Contains(output, "go-module") {
 					t.Errorf("output should contain source 'go-module', got: %s", output)

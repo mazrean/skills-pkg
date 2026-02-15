@@ -18,6 +18,11 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
+const (
+	// dirPerms is the default permission for created directories
+	dirPerms = 0755
+)
+
 // GoModAdapter implements the PackageManager interface for Go Module proxy.
 // It handles downloading modules from Go Module proxy, extracting zip files,
 // and retrieving the latest version.
