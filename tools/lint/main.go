@@ -17,7 +17,6 @@ import (
 	"github.com/tdakkota/asciicheck"
 	"github.com/timakin/bodyclose/passes/bodyclose"
 	gomnd "github.com/tommy-muehle/go-mnd/v2"
-	"github.com/uudashr/iface/unused"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/multichecker"
 	"golang.org/x/tools/go/analysis/passes/assign"
@@ -101,7 +100,6 @@ func main() {
 		// golangci-lint default analyzers
 		errcheck.Analyzer,
 		ineffassign.Analyzer,
-		unused.Analyzer,
 
 		// golangci-lint optional analyzers
 		asasalintAnalyzer,
