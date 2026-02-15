@@ -19,6 +19,12 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
+const (
+	// cargoMaxPathSplitParts is the maximum number of parts to split a path into
+	// when extracting the prefix directory (prefix + remaining path)
+	cargoMaxPathSplitParts = 2
+)
+
 // CargoAdapter implements the PackageManager interface for crates.io (cargo).
 // It handles downloading crates from crates.io, extracting them,
 // and retrieving the latest version.
@@ -252,7 +258,7 @@ func (a *CargoAdapter) extractCrate(r io.Reader, targetDir string) error {
 
 		// Determine prefix directory from the first entry
 		if prefixDir == "" {
-			parts := strings.SplitN(header.Name, "/", 2)
+			parts := strings.SplitN(header.Name, "/", cargoMaxPathSplitParts)
 			if len(parts) > 0 {
 				prefixDir = parts[0] + "/"
 			}

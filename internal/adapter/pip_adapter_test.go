@@ -20,16 +20,16 @@ func TestPipAdapter_Download_InvalidSource(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
 		source  *port.Source
+		name    string
 		wantErr bool
 	}{
 		{
-			name: "empty_type",
 			source: &port.Source{
 				Type: "",
 				URL:  "example-package",
 			},
+			name:    "empty_type",
 			wantErr: true,
 		},
 		{
@@ -65,16 +65,16 @@ func TestPipAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
 		source  *port.Source
+		name    string
 		wantErr bool
 	}{
 		{
-			name: "empty_type",
 			source: &port.Source{
 				Type: "",
 				URL:  "example-package",
 			},
+			name:    "empty_type",
 			wantErr: true,
 		},
 		{
