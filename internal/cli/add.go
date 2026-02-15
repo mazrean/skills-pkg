@@ -33,14 +33,30 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 		}
 	}
 
-	return c.run(defaultConfigPath, verbose, true)
+	return c.run(defaultConfigPath, verbose)
 }
 
 // run is the internal implementation that can be called from tests with custom parameters
-// This method adds a skill to the configuration file.
-// If skipInstall is false, it will also install the skill after adding to configuration.
+// This method adds a skill to the configuration file and installs it.
 // Requirements: 6.3, 12.1, 12.2, 12.3
-func (c *AddCmd) run(configPath string, verbose bool, install bool) error {
+func (c *AddCmd) run(configPath string, verbose bool) error {
+	// Create default dependencies
+	hashService := adapter.NewDirhashService()
+	packageManagers := []port.PackageManager{
+		adapter.NewGitAdapter(),
+		adapter.NewNpmAdapter(),
+		adapter.NewGoModAdapter(),
+		adapter.NewPipAdapter(),
+		adapter.NewCargoAdapter(),
+	}
+
+	return c.runWithDeps(configPath, verbose, hashService, packageManagers)
+}
+
+// runWithDeps is the internal implementation with dependency injection for testing
+// This method adds a skill to the configuration file and installs it.
+// Requirements: 6.3, 12.1, 12.2, 12.3
+func (c *AddCmd) runWithDeps(configPath string, verbose bool, hashService port.HashService, packageManagers []port.PackageManager) error {
 	// Create logger with verbose setting (requirement 12.4)
 	logger := NewLogger(verbose)
 
@@ -86,103 +102,55 @@ func (c *AddCmd) run(configPath string, verbose bool, install bool) error {
 
 	logger.Verbose("Created skill entry: %+v", skill)
 
-	// Install the skill immediately after adding to configuration if requested
-	if install {
-		logger.Info("Installing skill '%s'", c.Name)
-		logger.Verbose("Starting installation process")
+	// Install the skill after adding to configuration
+	logger.Info("Installing skill '%s'", c.Name)
+	logger.Verbose("Starting installation process")
 
-		// Add skill to config in memory (requirement 6.3)
-		config, err := configManager.AddSkillToConfig(context.Background(), skill)
-		if err != nil {
-			// Handle different error types with appropriate messages (requirements 12.2, 12.3)
-			if errors.Is(err, domain.ErrConfigNotFound) {
-				// Configuration file not found
-				logger.Error("Configuration file not found at %s", configPath)
-				logger.Error("Run 'skills-pkg init' to create a configuration file")
-				return err
-			}
-
-			if errors.Is(err, domain.ErrSkillExists) {
-				// Duplicate skill name (requirement 6.3)
-				logger.Error("Skill '%s' already exists in configuration", c.Name)
-				logger.Error("Use 'skills-pkg update' to update an existing skill or choose a different name")
-				return err
-			}
-
-			if errors.Is(err, domain.ErrInvalidSource) {
-				// Invalid source type
-				logger.Error("Invalid source type '%s'", c.Source)
-				logger.Error("Supported source types: git, npm, go-module, pip, cargo")
-				return err
-			}
-
-			// File system error or other errors - distinguish and report (requirements 12.2, 12.3)
-			logger.Error("Failed to add skill to configuration: %v", err)
-			logger.Error("Check file permissions and try again")
+	// Add skill to config in memory (requirement 6.3)
+	config, err := configManager.AddSkillToConfig(context.Background(), skill)
+	if err != nil {
+		// Handle different error types with appropriate messages (requirements 12.2, 12.3)
+		if errors.Is(err, domain.ErrConfigNotFound) {
+			// Configuration file not found
+			logger.Error("Configuration file not found at %s", configPath)
+			logger.Error("Run 'skills-pkg init' to create a configuration file")
 			return err
 		}
 
-		// Create HashService
-		hashService := adapter.NewDirhashService()
-
-		// Create PackageManagers
-		packageManagers := []port.PackageManager{
-			adapter.NewGitAdapter(),
-			adapter.NewNpmAdapter(),
-			adapter.NewGoModAdapter(),
-			adapter.NewPipAdapter(),
-			adapter.NewCargoAdapter(),
-		}
-
-		// Create SkillManager
-		skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
-
-		// Install the specific skill (this will save the configuration with hash values)
-		if err := skillManager.InstallSingleSkill(context.Background(), config, skill); err != nil {
-			// Handle installation errors (requirements 12.2, 12.3)
-			logger.Error("Failed to install skill '%s': %v", c.Name, err)
-			logger.Error("The skill has NOT been added to configuration due to installation failure")
-			logger.Error("Please check the error and try again")
-			return fmt.Errorf("installation failed: %w", err)
-		}
-
-		// Installation success message (requirement 12.1)
-		logger.Info("Successfully installed skill '%s'", c.Name)
-	} else {
-		// Add skill to configuration without installation (requirement 6.3)
-		if err := configManager.AddSkill(context.Background(), skill); err != nil {
-			// Handle different error types with appropriate messages (requirements 12.2, 12.3)
-			if errors.Is(err, domain.ErrConfigNotFound) {
-				// Configuration file not found
-				logger.Error("Configuration file not found at %s", configPath)
-				logger.Error("Run 'skills-pkg init' to create a configuration file")
-				return err
-			}
-
-			if errors.Is(err, domain.ErrSkillExists) {
-				// Duplicate skill name (requirement 6.3)
-				logger.Error("Skill '%s' already exists in configuration", c.Name)
-				logger.Error("Use 'skills-pkg update' to update an existing skill or choose a different name")
-				return err
-			}
-
-			if errors.Is(err, domain.ErrInvalidSource) {
-				// Invalid source type
-				logger.Error("Invalid source type '%s'", c.Source)
-				logger.Error("Supported source types: git, npm, go-module, pip, cargo")
-				return err
-			}
-
-			// File system error or other errors - distinguish and report (requirements 12.2, 12.3)
-			logger.Error("Failed to add skill to configuration: %v", err)
-			logger.Error("Check file permissions and try again")
+		if errors.Is(err, domain.ErrSkillExists) {
+			// Duplicate skill name (requirement 6.3)
+			logger.Error("Skill '%s' already exists in configuration", c.Name)
+			logger.Error("Use 'skills-pkg update' to update an existing skill or choose a different name")
 			return err
 		}
 
-		// Success message (requirement 12.1)
-		logger.Info("Successfully added skill '%s' to configuration", c.Name)
-		logger.Info("Use 'skills-pkg install %s' to install the skill", c.Name)
+		if errors.Is(err, domain.ErrInvalidSource) {
+			// Invalid source type
+			logger.Error("Invalid source type '%s'", c.Source)
+			logger.Error("Supported source types: git, npm, go-module, pip, cargo")
+			return err
+		}
+
+		// File system error or other errors - distinguish and report (requirements 12.2, 12.3)
+		logger.Error("Failed to add skill to configuration: %v", err)
+		logger.Error("Check file permissions and try again")
+		return err
 	}
+
+	// Create SkillManager
+	skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
+
+	// Install the specific skill (this will save the configuration with hash values)
+	if err := skillManager.InstallSingleSkill(context.Background(), config, skill); err != nil {
+		// Handle installation errors (requirements 12.2, 12.3)
+		logger.Error("Failed to install skill '%s': %v", c.Name, err)
+		logger.Error("The skill has NOT been added to configuration due to installation failure")
+		logger.Error("Please check the error and try again")
+		return fmt.Errorf("installation failed: %w", err)
+	}
+
+	// Installation success message (requirement 12.1)
+	logger.Info("Successfully installed skill '%s'", c.Name)
 
 	return nil
 }

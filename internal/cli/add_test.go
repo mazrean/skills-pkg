@@ -3,11 +3,65 @@ package cli
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/mazrean/skills-pkg/internal/domain"
+	"github.com/mazrean/skills-pkg/internal/port"
 )
+
+// mockHashService is a mock implementation of port.HashService for testing
+type mockHashService struct{}
+
+func (m *mockHashService) CalculateHash(ctx context.Context, path string) (*port.HashResult, error) {
+	return &port.HashResult{
+		Algorithm: "mock",
+		Value:     "mock-hash-value",
+	}, nil
+}
+
+func (m *mockHashService) HashAlgorithm() string {
+	return "mock"
+}
+
+// mockPackageManager is a mock implementation of port.PackageManager for testing
+type mockPackageManager struct {
+	sourceType string
+	tmpDir     string
+}
+
+func (m *mockPackageManager) SourceType() string {
+	return m.sourceType
+}
+
+func (m *mockPackageManager) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
+	// Use the temporary directory provided by the test
+	return &port.DownloadResult{
+		Path:    m.tmpDir,
+		Version: version,
+	}, nil
+}
+
+func (m *mockPackageManager) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
+	return "latest", nil
+}
+
+// setupTestConfig creates a test configuration with install targets
+func setupTestConfig(t *testing.T) (configPath string, cleanup func()) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	configPath = filepath.Join(tmpDir, ".skillspkg.toml")
+	installDir := filepath.Join(tmpDir, "install")
+
+	// Create initial config with install target
+	cm := domain.NewConfigManager(configPath)
+	if err := cm.Initialize(context.Background(), []string{installDir}); err != nil {
+		t.Fatalf("failed to initialize config: %v", err)
+	}
+
+	return configPath, func() {}
+}
 
 func TestAddCmd_Run(t *testing.T) {
 	t.Parallel()
@@ -30,19 +84,7 @@ func TestAddCmd_Run(t *testing.T) {
 			source:    "git",
 			url:       "https://github.com/example/skill.git",
 			version:   "v1.0.0",
-			setupFunc: func(t *testing.T) (string, func()) {
-				t.Helper()
-				tmpDir := t.TempDir()
-				configPath := filepath.Join(tmpDir, ".skillspkg.toml")
-
-				// Create initial config
-				cm := domain.NewConfigManager(configPath)
-				if err := cm.Initialize(context.Background(), nil); err != nil {
-					t.Fatalf("failed to initialize config: %v", err)
-				}
-
-				return configPath, func() {}
-			},
+			setupFunc: setupTestConfig,
 			wantErr: false,
 			checkFunc: func(t *testing.T, configPath string) {
 				t.Helper()
@@ -80,19 +122,7 @@ func TestAddCmd_Run(t *testing.T) {
 			source:    "npm",
 			url:       "example-skill",
 			version:   "1.0.0",
-			setupFunc: func(t *testing.T) (string, func()) {
-				t.Helper()
-				tmpDir := t.TempDir()
-				configPath := filepath.Join(tmpDir, ".skillspkg.toml")
-
-				// Create initial config
-				cm := domain.NewConfigManager(configPath)
-				if err := cm.Initialize(context.Background(), nil); err != nil {
-					t.Fatalf("failed to initialize config: %v", err)
-				}
-
-				return configPath, func() {}
-			},
+			setupFunc: setupTestConfig,
 			wantErr: false,
 			checkFunc: func(t *testing.T, configPath string) {
 				t.Helper()
@@ -121,19 +151,7 @@ func TestAddCmd_Run(t *testing.T) {
 			source:    "go-module",
 			url:       "github.com/example/skill",
 			version:   "v1.0.0",
-			setupFunc: func(t *testing.T) (string, func()) {
-				t.Helper()
-				tmpDir := t.TempDir()
-				configPath := filepath.Join(tmpDir, ".skillspkg.toml")
-
-				// Create initial config
-				cm := domain.NewConfigManager(configPath)
-				if err := cm.Initialize(context.Background(), nil); err != nil {
-					t.Fatalf("failed to initialize config: %v", err)
-				}
-
-				return configPath, func() {}
-			},
+			setupFunc: setupTestConfig,
 			wantErr: false,
 			checkFunc: func(t *testing.T, configPath string) {
 				t.Helper()
@@ -178,19 +196,7 @@ func TestAddCmd_Run(t *testing.T) {
 			source:    "invalid-source",
 			url:       "https://example.com",
 			version:   "v1.0.0",
-			setupFunc: func(t *testing.T) (string, func()) {
-				t.Helper()
-				tmpDir := t.TempDir()
-				configPath := filepath.Join(tmpDir, ".skillspkg.toml")
-
-				// Create initial config
-				cm := domain.NewConfigManager(configPath)
-				if err := cm.Initialize(context.Background(), nil); err != nil {
-					t.Fatalf("failed to initialize config: %v", err)
-				}
-
-				return configPath, func() {}
-			},
+			setupFunc: setupTestConfig,
 			wantErr:     true,
 			wantErrType: domain.ErrInvalidSource,
 		},
@@ -204,10 +210,11 @@ func TestAddCmd_Run(t *testing.T) {
 				t.Helper()
 				tmpDir := t.TempDir()
 				configPath := filepath.Join(tmpDir, ".skillspkg.toml")
+				installDir := filepath.Join(tmpDir, "install")
 
 				// Create initial config with existing skill
 				cm := domain.NewConfigManager(configPath)
-				if err := cm.Initialize(context.Background(), nil); err != nil {
+				if err := cm.Initialize(context.Background(), []string{installDir}); err != nil {
 					t.Fatalf("failed to initialize config: %v", err)
 				}
 
@@ -234,19 +241,7 @@ func TestAddCmd_Run(t *testing.T) {
 			url:       "github.com/example/skills",
 			version:   "v1.0.0",
 			subDir:    "", // Empty means use default
-			setupFunc: func(t *testing.T) (string, func()) {
-				t.Helper()
-				tmpDir := t.TempDir()
-				configPath := filepath.Join(tmpDir, ".skillspkg.toml")
-
-				// Create initial config
-				cm := domain.NewConfigManager(configPath)
-				if err := cm.Initialize(context.Background(), nil); err != nil {
-					t.Fatalf("failed to initialize config: %v", err)
-				}
-
-				return configPath, func() {}
-			},
+			setupFunc: setupTestConfig,
 			wantErr: false,
 			checkFunc: func(t *testing.T, configPath string) {
 				t.Helper()
@@ -276,19 +271,7 @@ func TestAddCmd_Run(t *testing.T) {
 			url:       "github.com/example/monorepo",
 			version:   "v1.0.0",
 			subDir:    "packages/agents/custom-skill",
-			setupFunc: func(t *testing.T) (string, func()) {
-				t.Helper()
-				tmpDir := t.TempDir()
-				configPath := filepath.Join(tmpDir, ".skillspkg.toml")
-
-				// Create initial config
-				cm := domain.NewConfigManager(configPath)
-				if err := cm.Initialize(context.Background(), nil); err != nil {
-					t.Fatalf("failed to initialize config: %v", err)
-				}
-
-				return configPath, func() {}
-			},
+			setupFunc: setupTestConfig,
 			wantErr: false,
 			checkFunc: func(t *testing.T, configPath string) {
 				t.Helper()
@@ -329,8 +312,28 @@ func TestAddCmd_Run(t *testing.T) {
 			}
 
 			// Execute command directly using the internal run method for testing
-			// Skip installation in tests to avoid network dependencies
-			err := cmd.run(configPath, false, false) // non-verbose mode, skip installation
+			// Note: This will attempt to install the skill, which may fail without network access
+			// Use mock dependencies to avoid network access
+			tmpDir := t.TempDir() // Create a temporary directory for mock downloads
+
+			// Create the expected SubDir structure
+			subDir := tt.subDir
+			if subDir == "" {
+				subDir = "skills/" + tt.skillName
+			}
+			if err := os.MkdirAll(filepath.Join(tmpDir, subDir), 0o755); err != nil {
+				t.Fatalf("failed to create subdirectory: %v", err)
+			}
+
+			hashService := &mockHashService{}
+			packageManagers := []port.PackageManager{
+				&mockPackageManager{sourceType: "git", tmpDir: tmpDir},
+				&mockPackageManager{sourceType: "npm", tmpDir: tmpDir},
+				&mockPackageManager{sourceType: "go-module", tmpDir: tmpDir},
+				&mockPackageManager{sourceType: "pip", tmpDir: tmpDir},
+				&mockPackageManager{sourceType: "cargo", tmpDir: tmpDir},
+			}
+			err := cmd.runWithDeps(configPath, false, hashService, packageManagers) // non-verbose mode
 
 			// Check error
 			if tt.wantErr {
