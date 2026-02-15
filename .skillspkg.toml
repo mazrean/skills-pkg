@@ -1,2 +1,2 @@
 skills = []
-install_targets = ['/home/mazrean/.claude/skills']
+install_targets = ['./.claude/skills']
