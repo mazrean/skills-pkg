@@ -208,12 +208,11 @@ type mockPackageManagerMultiSkill struct {
 	sourceType   string
 	downloadDir1 string
 	downloadDir2 string
-	callCount    int
 }
 
 func (m *mockPackageManagerMultiSkill) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
-	m.callCount++
-	if m.callCount == 1 {
+	// Return different results based on the source URL or version to avoid race conditions
+	if source.URL == "https://github.com/example/skill1.git" || version == "v1.0.0" {
 		return &port.DownloadResult{Path: m.downloadDir1, Version: "v1.0.0"}, nil
 	}
 	return &port.DownloadResult{Path: m.downloadDir2, Version: "v2.0.0"}, nil
@@ -373,12 +372,11 @@ func TestInstall_AllSkills(t *testing.T) {
 		t.Fatalf("Failed to save config: %v", err)
 	}
 
-	// Setup mock package manager that returns different paths based on version
+	// Setup mock package manager that returns different paths based on source URL
 	pm := &mockPackageManagerMultiSkill{
 		sourceType:   "git",
 		downloadDir1: downloadDir1,
 		downloadDir2: downloadDir2,
-		callCount:    0,
 	}
 
 	// Setup mock hash service

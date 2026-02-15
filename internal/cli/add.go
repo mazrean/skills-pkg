@@ -135,7 +135,7 @@ func (c *AddCmd) runWithDeps(configPath string, verbose bool, hashService port.H
 	skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
 
 	// Install the specific skill (this will save the configuration with hash values)
-	if err := skillManager.InstallSingleSkill(context.Background(), config, skill); err != nil {
+	if err := skillManager.InstallSingleSkill(context.Background(), config, skill, true); err != nil {
 		// Handle installation errors (requirements 12.2, 12.3)
 		logger.Error("Failed to install skill '%s': %v", c.Name, err)
 		logger.Error("The skill has NOT been added to configuration due to installation failure")
