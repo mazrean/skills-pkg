@@ -18,7 +18,7 @@ func TestInitCmd_Run(t *testing.T) {
 		setupFunc   func(t *testing.T) (configPath string, cleanup func())
 		checkFunc   func(t *testing.T, configPath string)
 		name        string
-		agent       string
+		agent       []string
 		installDirs []string
 		global      bool
 		wantErr     bool
@@ -26,7 +26,7 @@ func TestInitCmd_Run(t *testing.T) {
 		{
 			name:        "success: initialize with default settings",
 			installDirs: nil,
-			agent:       "",
+			agent:       nil,
 			setupFunc: func(t *testing.T) (string, func()) {
 				t.Helper()
 				tmpDir := t.TempDir()
@@ -65,7 +65,7 @@ func TestInitCmd_Run(t *testing.T) {
 		{
 			name:        "success: initialize with custom install directories",
 			installDirs: []string{"~/.custom/skills", "/opt/skills"},
-			agent:       "",
+			agent:       nil,
 			setupFunc: func(t *testing.T) (string, func()) {
 				t.Helper()
 				tmpDir := t.TempDir()
@@ -96,7 +96,7 @@ func TestInitCmd_Run(t *testing.T) {
 		{
 			name:        "success: initialize with agent flag (project-level)",
 			installDirs: nil,
-			agent:       "claude",
+			agent:       []string{"claude"},
 			setupFunc: func(t *testing.T) (string, func()) {
 				t.Helper()
 				tmpDir := t.TempDir()
@@ -126,7 +126,7 @@ func TestInitCmd_Run(t *testing.T) {
 		{
 			name:        "success: initialize with both custom dirs and agent",
 			installDirs: []string{"/custom/path"},
-			agent:       "claude",
+			agent:       []string{"claude"},
 			setupFunc: func(t *testing.T) (string, func()) {
 				t.Helper()
 				tmpDir := t.TempDir()
@@ -154,9 +154,45 @@ func TestInitCmd_Run(t *testing.T) {
 			},
 		},
 		{
+			name:        "success: initialize with multiple agents (project-level)",
+			installDirs: nil,
+			agent:       []string{"claude", "codex"},
+			setupFunc: func(t *testing.T) (string, func()) {
+				t.Helper()
+				tmpDir := t.TempDir()
+				configPath := filepath.Join(tmpDir, ".skillspkg.toml")
+				return configPath, func() {}
+			},
+			wantErr: false,
+			checkFunc: func(t *testing.T, configPath string) {
+				t.Helper()
+				cm := domain.NewConfigManager(configPath)
+				config, err := cm.Load(context.Background())
+				if err != nil {
+					t.Fatalf("failed to load created config: %v", err)
+				}
+
+				if len(config.InstallTargets) != 2 {
+					t.Errorf("expected 2 install targets, got %d", len(config.InstallTargets))
+				}
+
+				// Should contain both project-level agent directories
+				expectedDirs := []string{"./.claude/skills", "./.codex/skills"}
+				for i, expectedDir := range expectedDirs {
+					if i >= len(config.InstallTargets) {
+						t.Errorf("missing install target at index %d", i)
+						continue
+					}
+					if config.InstallTargets[i] != expectedDir {
+						t.Errorf("install target[%d]: expected %s, got %s", i, expectedDir, config.InstallTargets[i])
+					}
+				}
+			},
+		},
+		{
 			name:        "success: initialize with codex agent flag (project-level)",
 			installDirs: nil,
-			agent:       "codex",
+			agent:       []string{"codex"},
 			global:      false,
 			setupFunc: func(t *testing.T) (string, func()) {
 				t.Helper()
@@ -187,7 +223,7 @@ func TestInitCmd_Run(t *testing.T) {
 		{
 			name:        "success: initialize with agent flag and global (user-level)",
 			installDirs: nil,
-			agent:       "claude",
+			agent:       []string{"claude"},
 			global:      true,
 			setupFunc: func(t *testing.T) (string, func()) {
 				t.Helper()
@@ -223,7 +259,7 @@ func TestInitCmd_Run(t *testing.T) {
 		{
 			name:        "error: config file already exists",
 			installDirs: nil,
-			agent:       "",
+			agent:       nil,
 			setupFunc: func(t *testing.T) (string, func()) {
 				t.Helper()
 				tmpDir := t.TempDir()

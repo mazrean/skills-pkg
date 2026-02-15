@@ -20,7 +20,7 @@ const (
 // InitCmd represents the init command
 // Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 12.1, 12.2, 12.3, 12.4
 type InitCmd struct {
-	Agent      string   `help:"Agent name (e.g., 'claude', 'codex', 'cursor', 'copilot', 'goose', 'opencode', 'gemini', 'amp', 'factory') to use default directory" short:"a"`
+	Agent      []string `help:"Agent name (e.g., 'claude', 'codex', 'cursor', 'copilot', 'goose', 'opencode', 'gemini', 'amp', 'factory') to use default directory (can be specified multiple times)" short:"a"`
 	InstallDir []string `help:"Custom install directory (can be specified multiple times)" short:"d"`
 	Global     bool     `help:"Use user-level directory instead of project-level directory (requires --agent)" short:"g"`
 }
@@ -107,32 +107,34 @@ func (c *InitCmd) buildInstallTargets(logger *Logger) ([]string, error) {
 		installTargets = append(installTargets, c.InstallDir...)
 	}
 
-	// Add agent-specific directory if --agent is specified (requirement 1.3)
-	if c.Agent != "" {
-		logger.Verbose("Resolving agent directory for: %s (global=%v)", c.Agent, c.Global)
+	// Add agent-specific directories if --agent is specified (requirement 1.3)
+	if len(c.Agent) > 0 {
+		for _, agent := range c.Agent {
+			logger.Verbose("Resolving agent directory for: %s (global=%v)", agent, c.Global)
 
-		// Validate --global flag usage
-		if c.Global {
-			// Use AgentProvider to resolve user-level directory (requirements 10.3, 10.4)
-			agentProvider, err := c.getAgentProvider(c.Agent)
-			if err != nil {
-				// Report unsupported agent error with cause and recommended action (requirements 12.2, 12.3)
-				return nil, fmt.Errorf("failed to get agent provider: %w. Supported agents: claude, codex, cursor, copilot, goose, opencode, gemini, amp, factory", err)
+			// Validate --global flag usage
+			if c.Global {
+				// Use AgentProvider to resolve user-level directory (requirements 10.3, 10.4)
+				agentProvider, err := c.getAgentProvider(agent)
+				if err != nil {
+					// Report unsupported agent error with cause and recommended action (requirements 12.2, 12.3)
+					return nil, fmt.Errorf("failed to get agent provider for %s: %w. Supported agents: claude, codex, cursor, copilot, goose, opencode, gemini, amp, factory", agent, err)
+				}
+
+				agentDir, err := agentProvider.ResolveAgentDir(agent)
+				if err != nil {
+					// Report unsupported agent error with cause and recommended action (requirements 12.2, 12.3)
+					return nil, fmt.Errorf("failed to resolve agent directory for %s: %w", agent, err)
+				}
+
+				logger.Verbose("Resolved user-level agent directory: %s", agentDir)
+				installTargets = append(installTargets, agentDir)
+			} else {
+				// Use project-level agent directory (e.g., ./.claude/skills)
+				agentDir := fmt.Sprintf("./.%s/skills", agent)
+				logger.Verbose("Using project-level agent directory: %s", agentDir)
+				installTargets = append(installTargets, agentDir)
 			}
-
-			agentDir, err := agentProvider.ResolveAgentDir(c.Agent)
-			if err != nil {
-				// Report unsupported agent error with cause and recommended action (requirements 12.2, 12.3)
-				return nil, fmt.Errorf("failed to resolve agent directory: %w", err)
-			}
-
-			logger.Verbose("Resolved user-level agent directory: %s", agentDir)
-			installTargets = append(installTargets, agentDir)
-		} else {
-			// Use project-level agent directory (e.g., ./.claude/skills)
-			agentDir := fmt.Sprintf("./.%s/skills", c.Agent)
-			logger.Verbose("Using project-level agent directory: %s", agentDir)
-			installTargets = append(installTargets, agentDir)
 		}
 	}
 
