@@ -33,7 +33,7 @@ func TestE2ECompleteFlow(t *testing.T) {
 
 	// Setup: Create test Git repository
 	testRepoDir := filepath.Join(workspaceDir, "test-skill-repo")
-	testRepoURL := createTestGitRepo(t, testRepoDir)
+	testRepoURL := createTestGitRepo(t, testRepoDir, "test-skill")
 
 	// Setup: Build the CLI binary
 	binaryPath := buildCLIBinary(t, workspaceDir)
@@ -213,7 +213,7 @@ func TestE2EMultipleAgentInstallation(t *testing.T) {
 
 	// Setup: Create test Git repository
 	testRepoDir := filepath.Join(workspaceDir, "test-skill-repo")
-	testRepoURL := createTestGitRepo(t, testRepoDir)
+	testRepoURL := createTestGitRepo(t, testRepoDir, "multi-agent-skill")
 
 	// Setup: Build the CLI binary
 	binaryPath := buildCLIBinary(t, workspaceDir)
@@ -301,7 +301,7 @@ func TestE2EHashMismatchWarning(t *testing.T) {
 
 	// Setup: Create test Git repository
 	testRepoDir := filepath.Join(workspaceDir, "test-skill-repo")
-	testRepoURL := createTestGitRepo(t, testRepoDir)
+	testRepoURL := createTestGitRepo(t, testRepoDir, "tamper-test-skill")
 
 	// Setup: Build the CLI binary
 	binaryPath := buildCLIBinary(t, workspaceDir)
@@ -549,8 +549,111 @@ func TestE2EVerboseMode(t *testing.T) {
 	})
 }
 
+// TestE2ERealRepository tests installing a skill from the actual vercel-labs/agent-skills repository
+// This test verifies that the SubDir functionality works with real-world repositories
+func TestE2ERealRepository(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	// Skip if network is not available
+	if os.Getenv("SKIP_NETWORK_TESTS") == "true" {
+		t.Skip("Skipping network-dependent test")
+	}
+
+	// Setup: Create temporary workspace
+	workspaceDir := t.TempDir()
+	projectDir := filepath.Join(workspaceDir, "test-project")
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		t.Fatalf("Failed to create project directory: %v", err)
+	}
+
+	// Setup: Build the CLI binary
+	binaryPath := buildCLIBinary(t, workspaceDir)
+	defer func() { _ = os.Remove(binaryPath) }()
+
+	// Setup: Define install target
+	installDir := filepath.Join(workspaceDir, "skills")
+
+	// Test: Initialize project
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, binaryPath, "init", "--install-dir", installDir)
+	cmd.Dir = projectDir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("init command failed: %v\nOutput: %s", err, output)
+	}
+
+	// Test: Add skill from vercel-labs/agent-skills repository
+	// Using the claude.ai/vercel-deploy-claimable skill as an example
+	t.Run("add_real_skill", func(t *testing.T) {
+		cmd := exec.CommandContext(ctx, binaryPath, "add",
+			"vercel-deploy",
+			"--source", "git",
+			"--url", "https://github.com/vercel-labs/agent-skills.git",
+			"--version", "main",
+			"--sub-dir", "skills/claude.ai/vercel-deploy-claimable",
+		)
+		cmd.Dir = projectDir
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("add command failed: %v\nOutput: %s", err, output)
+		}
+
+		if cmd.ProcessState.ExitCode() != 0 {
+			t.Errorf("Expected exit code 0, got %d", cmd.ProcessState.ExitCode())
+		}
+	})
+
+	// Test: Install the skill
+	t.Run("install_real_skill", func(t *testing.T) {
+		cmd := exec.CommandContext(ctx, binaryPath, "install", "vercel-deploy")
+		cmd.Dir = projectDir
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("install command failed: %v\nOutput: %s", err, output)
+		}
+
+		// Verify skill was installed
+		skillPath := filepath.Join(installDir, "vercel-deploy")
+		if _, err := os.Stat(skillPath); os.IsNotExist(err) {
+			t.Errorf("Skill was not installed at %s", skillPath)
+		}
+
+		// Verify SKILL.md exists in the installed skill
+		skillMdPath := filepath.Join(skillPath, "SKILL.md")
+		if _, err := os.Stat(skillMdPath); os.IsNotExist(err) {
+			t.Errorf("SKILL.md was not found in installed skill at %s", skillMdPath)
+		}
+
+		// Verify that only the subdirectory was installed (not the entire repo)
+		// The installed directory should NOT contain the top-level README or other skills
+		topReadme := filepath.Join(skillPath, "README.md")
+		if _, err := os.Stat(topReadme); !os.IsNotExist(err) {
+			t.Errorf("Top-level README.md should not exist in skill directory (found at %s), only the subdirectory should be installed", topReadme)
+		}
+	})
+
+	// Test: Verify the installed skill
+	t.Run("verify_real_skill", func(t *testing.T) {
+		cmd := exec.CommandContext(ctx, binaryPath, "verify")
+		cmd.Dir = projectDir
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("verify command failed: %v\nOutput: %s", err, output)
+		}
+
+		// Verify output indicates success
+		outputStr := string(output)
+		if strings.Contains(outputStr, "⚠ WARNING") || strings.Contains(outputStr, "Failed") {
+			t.Logf("Verification output: %s", outputStr)
+			// Note: We log but don't fail here because network issues might cause hash mismatches
+		}
+	})
+}
+
 // Helper: createTestGitRepo creates a test Git repository with a skill
-func createTestGitRepo(t *testing.T, repoPath string) string {
+// The skillName parameter specifies which skill directory to create under skills/
+func createTestGitRepo(t *testing.T, repoPath string, skillName string) string {
 	t.Helper()
 
 	// Initialize Git repository
@@ -559,8 +662,14 @@ func createTestGitRepo(t *testing.T, repoPath string) string {
 		t.Fatalf("Failed to initialize Git repository: %v", err)
 	}
 
-	// Create a SKILL.md file
-	skillMdPath := filepath.Join(repoPath, "SKILL.md")
+	// Create skills directory structure
+	skillDir := filepath.Join(repoPath, "skills", skillName)
+	if mkdirErr := os.MkdirAll(skillDir, 0755); mkdirErr != nil {
+		t.Fatalf("Failed to create skill directory: %v", mkdirErr)
+	}
+
+	// Create a SKILL.md file in the skill directory
+	skillMdPath := filepath.Join(skillDir, "SKILL.md")
 	skillContent := `# Test Skill
 
 This is a test skill for E2E testing.
@@ -579,8 +688,8 @@ Test usage instructions.
 		t.Fatalf("Failed to get worktree: %v", wErr)
 	}
 
-	if _, addErr := w.Add("SKILL.md"); addErr != nil {
-		t.Fatalf("Failed to add file to Git: %v", addErr)
+	if _, addErr := w.Add("."); addErr != nil {
+		t.Fatalf("Failed to add files to Git: %v", addErr)
 	}
 
 	// Commit

@@ -36,13 +36,12 @@ func TestListCmd_Run(t *testing.T) {
 
 				// Add git skill
 				gitSkill := &domain.Skill{
-					Name:           "git-skill",
-					Source:         "git",
-					URL:            "https://github.com/example/skill.git",
-					Version:        "v1.0.0",
-					HashAlgo:       "sha256",
-					HashValue:      "abc123",
-					PackageManager: "",
+					Name:      "git-skill",
+					Source:    "git",
+					URL:       "https://github.com/example/skill.git",
+					Version:   "v1.0.0",
+					HashAlgo:  "sha256",
+					HashValue: "abc123",
 				}
 				if err := cm.AddSkill(context.Background(), gitSkill); err != nil {
 					t.Fatalf("failed to add git skill: %v", err)
@@ -50,13 +49,12 @@ func TestListCmd_Run(t *testing.T) {
 
 				// Add npm skill
 				npmSkill := &domain.Skill{
-					Name:           "npm-skill",
-					Source:         "npm",
-					URL:            "example-npm-skill",
-					Version:        "2.0.0",
-					HashAlgo:       "sha256",
-					HashValue:      "def456",
-					PackageManager: "npm",
+					Name:      "npm-skill",
+					Source:    "npm",
+					URL:       "example-npm-skill",
+					Version:   "2.0.0",
+					HashAlgo:  "sha256",
+					HashValue: "def456",
 				}
 				if err := cm.AddSkill(context.Background(), npmSkill); err != nil {
 					t.Fatalf("failed to add npm skill: %v", err)
@@ -64,13 +62,12 @@ func TestListCmd_Run(t *testing.T) {
 
 				// Add go-module skill
 				goSkill := &domain.Skill{
-					Name:           "go-skill",
-					Source:         "go-module",
-					URL:            "github.com/example/go-skill",
-					Version:        "v0.5.0",
-					HashAlgo:       "sha256",
-					HashValue:      "ghi789",
-					PackageManager: "go-module",
+					Name:      "go-skill",
+					Source:    "go-module",
+					URL:       "github.com/example/go-skill",
+					Version:   "v0.5.0",
+					HashAlgo:  "sha256",
+					HashValue: "ghi789",
 				}
 				if err := cm.AddSkill(context.Background(), goSkill); err != nil {
 					t.Fatalf("failed to add go skill: %v", err)

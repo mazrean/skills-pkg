@@ -257,9 +257,25 @@ func (s *skillManagerImpl) installSingleSkill(ctx context.Context, config *Confi
 		return fmt.Errorf("failed to download skill '%s': %w. Check your network connection and source URL", skill.Name, err)
 	}
 
+	// Determine the source path to use for installation and hash calculation
+	sourcePath := downloadResult.Path
+	if skill.SubDir != "" {
+		// Use the subdirectory within the downloaded content
+		sourcePath = downloadResult.Path + "/" + skill.SubDir
+
+		// Verify that the subdirectory exists
+		if _, err := os.Stat(sourcePath); err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("subdirectory '%s' not found in downloaded skill '%s'. Available content is in: %s", skill.SubDir, skill.Name, downloadResult.Path)
+			}
+			return fmt.Errorf("failed to access subdirectory '%s' in skill '%s': %w", skill.SubDir, skill.Name, err)
+		}
+		fmt.Printf("Using subdirectory '%s' from downloaded content...\n", skill.SubDir)
+	}
+
 	// Calculate hash (Requirement 5.3)
 	fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
-	hashResult, err := s.hashService.CalculateHash(ctx, downloadResult.Path)
+	hashResult, err := s.hashService.CalculateHash(ctx, sourcePath)
 	if err != nil {
 		return fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
 	}
@@ -281,7 +297,7 @@ func (s *skillManagerImpl) installSingleSkill(ctx context.Context, config *Confi
 
 	// Install to all targets (Requirements 3.4, 4.4, 10.2, 10.5, 6.6)
 	fmt.Printf("Installing skill '%s' to %d target(s)...\n", skill.Name, len(installTargets))
-	if err := s.copySkillToTargets(downloadResult.Path, skill.Name, installTargets); err != nil {
+	if err := s.copySkillToTargets(sourcePath, skill.Name, installTargets); err != nil {
 		return fmt.Errorf("failed to copy skill '%s' to install targets: %w. Check file permissions", skill.Name, err)
 	}
 
@@ -380,9 +396,25 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		return nil, fmt.Errorf("failed to download skill '%s': %w", skill.Name, err)
 	}
 
+	// Determine the source path to use for installation and hash calculation
+	sourcePath := downloadResult.Path
+	if skill.SubDir != "" {
+		// Use the subdirectory within the downloaded content
+		sourcePath = downloadResult.Path + "/" + skill.SubDir
+
+		// Verify that the subdirectory exists
+		if _, err := os.Stat(sourcePath); err != nil {
+			if os.IsNotExist(err) {
+				return nil, fmt.Errorf("subdirectory '%s' not found in downloaded skill '%s'. Available content is in: %s", skill.SubDir, skill.Name, downloadResult.Path)
+			}
+			return nil, fmt.Errorf("failed to access subdirectory '%s' in skill '%s': %w", skill.SubDir, skill.Name, err)
+		}
+		fmt.Printf("Using subdirectory '%s' from downloaded content...\n", skill.SubDir)
+	}
+
 	// Calculate hash (Requirement 5.3, 7.5)
 	fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
-	hashResult, err := s.hashService.CalculateHash(ctx, downloadResult.Path)
+	hashResult, err := s.hashService.CalculateHash(ctx, sourcePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
 	}
@@ -403,7 +435,7 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	if len(installTargets) > 0 {
 		// Install to all targets (Requirements 10.2, 10.5)
 		fmt.Printf("Installing updated skill '%s' to %d target(s)...\n", skill.Name, len(installTargets))
-		if err := s.copySkillToTargets(downloadResult.Path, skill.Name, installTargets); err != nil {
+		if err := s.copySkillToTargets(sourcePath, skill.Name, installTargets); err != nil {
 			// Filesystem error handling (Requirement 12.2, 12.3)
 			return nil, fmt.Errorf("failed to copy updated skill '%s' to install targets: %w. Check file permissions", skill.Name, err)
 		}

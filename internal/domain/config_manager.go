@@ -163,7 +163,7 @@ func (m *ConfigManager) UpdateSkill(ctx context.Context, skill *Skill) error {
 	existingSkill.Version = skill.Version
 	existingSkill.HashAlgo = skill.HashAlgo
 	existingSkill.HashValue = skill.HashValue
-	existingSkill.PackageManager = skill.PackageManager
+	existingSkill.SubDir = skill.SubDir
 
 	// Save the updated config
 	if err := m.Save(ctx, config); err != nil {
