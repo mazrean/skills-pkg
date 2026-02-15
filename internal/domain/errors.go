@@ -30,3 +30,9 @@ var (
 	// ErrInvalidSkill indicates that a skill has invalid field values.
 	ErrInvalidSkill = errors.New("invalid skill configuration")
 )
+
+// IsNetworkError checks if an error is a network-related error.
+// It returns true if the error wraps ErrNetworkFailure.
+func IsNetworkError(err error) bool {
+	return errors.Is(err, ErrNetworkFailure)
+}
