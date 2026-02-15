@@ -20,9 +20,8 @@ import (
 )
 
 const (
-	// pipMaxPathSplitParts is the maximum number of parts to split a path into
-	// when extracting the prefix directory (prefix + remaining path)
-	pipMaxPathSplitParts = 2
+	// pipPathSplitLimit is the limit for splitting paths to separate the first directory from the rest
+	pipPathSplitLimit = 2
 )
 
 // PipAdapter implements the PackageManager interface for PyPI (pip).
@@ -289,7 +288,7 @@ func (a *PipAdapter) extractTarGz(r io.Reader, targetDir string) error {
 
 		// Determine prefix directory from the first entry
 		if prefixDir == "" {
-			parts := strings.SplitN(header.Name, "/", pipMaxPathSplitParts)
+			parts := strings.SplitN(header.Name, "/", pipPathSplitLimit)
 			if len(parts) > 0 {
 				prefixDir = parts[0] + "/"
 			}
