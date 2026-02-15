@@ -371,10 +371,10 @@ func TestInstall_AllSkills(t *testing.T) {
 
 	// Setup mock package manager that returns different paths based on version
 	pm := &mockPackageManagerMultiSkill{
-		sourceType:    "git",
-		downloadDir1:  downloadDir1,
-		downloadDir2:  downloadDir2,
-		callCount:     0,
+		sourceType:   "git",
+		downloadDir1: downloadDir1,
+		downloadDir2: downloadDir2,
+		callCount:    0,
 	}
 
 	// Setup mock hash service
@@ -777,8 +777,8 @@ func (m *mockPackageManagerWithUpdate) SourceType() string {
 
 // Mock package manager with error
 type mockPackageManagerWithError struct {
-	sourceType string
 	err        error
+	sourceType string
 }
 
 func (m *mockPackageManagerWithError) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {

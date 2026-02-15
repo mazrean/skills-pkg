@@ -14,6 +14,11 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
+const (
+	// defaultDirPerm is the default permission for created directories
+	defaultDirPerm = 0755
+)
+
 // GitAdapter implements the PackageManager interface for Git repositories.
 // It handles cloning repositories, checking out specific versions (tags or commits),
 // and retrieving the latest version.
@@ -54,7 +59,7 @@ func (a *GitAdapter) Download(ctx context.Context, source *port.Source, version 
 	repo, err := a.cloneRepository(ctx, source.URL, tempDir)
 	if err != nil {
 		// Clean up on error
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return nil, err
 	}
 
@@ -62,7 +67,7 @@ func (a *GitAdapter) Download(ctx context.Context, source *port.Source, version 
 	actualVersion, err := a.checkoutVersion(repo, version)
 	if err != nil {
 		// Clean up on error
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return nil, err
 	}
 
@@ -89,7 +94,7 @@ func (a *GitAdapter) GetLatestVersion(ctx context.Context, source *port.Source) 
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary directory: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Clone the repository
 	repo, err := a.cloneRepository(ctx, source.URL, tempDir)
@@ -122,11 +127,11 @@ func (a *GitAdapter) createTempDir() (string, error) {
 
 	// Generate a unique directory name using hash
 	hash := sha256.New()
-	hash.Write([]byte(fmt.Sprintf("%d", os.Getpid())))
+	_, _ = fmt.Fprintf(hash, "%d", os.Getpid())
 	dirName := fmt.Sprintf("skills-pkg-%x", hash.Sum(nil)[:8])
 
 	tempDir := filepath.Join(baseDir, dirName)
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
+	if err := os.MkdirAll(tempDir, defaultDirPerm); err != nil {
 		return "", err
 	}
 

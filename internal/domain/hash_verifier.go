@@ -23,10 +23,10 @@ type VerifyResult struct {
 // It provides statistics about the verification results.
 // Requirements: 5.6
 type VerifySummary struct {
+	Results      []*VerifyResult // Detailed results for each skill
 	TotalSkills  int             // Total number of skills verified
 	SuccessCount int             // Number of skills with matching hashes
 	FailureCount int             // Number of skills with mismatching hashes
-	Results      []*VerifyResult // Detailed results for each skill
 }
 
 // HashVerifier manages hash verification for skills.

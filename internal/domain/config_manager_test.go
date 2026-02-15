@@ -441,11 +441,11 @@ func TestConfigManager_Save(t *testing.T) {
 // Requirements: 2.2, 2.3, 2.4, 5.2
 func TestConfigManager_AddSkill(t *testing.T) {
 	tests := []struct {
-		name        string
+		wantErr     error
 		setupConfig *domain.Config
 		skill       *domain.Skill
-		wantErr     error
 		validate    func(t *testing.T, config *domain.Config)
+		name        string
 	}{
 		{
 			name: "successfully adds git skill",
@@ -583,11 +583,11 @@ func TestConfigManager_AddSkill(t *testing.T) {
 // Requirements: 2.2, 5.2
 func TestConfigManager_UpdateSkill(t *testing.T) {
 	tests := []struct {
-		name        string
+		wantErr     error
 		setupConfig *domain.Config
 		skill       *domain.Skill
-		wantErr     error
 		validate    func(t *testing.T, config *domain.Config)
+		name        string
 	}{
 		{
 			name: "successfully updates skill version and hash",
@@ -695,11 +695,11 @@ func TestConfigManager_UpdateSkill(t *testing.T) {
 // Requirements: 9.2
 func TestConfigManager_RemoveSkill(t *testing.T) {
 	tests := []struct {
-		name        string
-		setupConfig *domain.Config
-		skillName   string
 		wantErr     error
+		setupConfig *domain.Config
 		validate    func(t *testing.T, config *domain.Config)
+		name        string
+		skillName   string
 	}{
 		{
 			name: "successfully removes skill",
@@ -830,10 +830,10 @@ func TestConfigManager_RemoveSkill(t *testing.T) {
 // Requirements: 1.2, 2.5, 10.1
 func TestConfigManager_GetInstallTargets(t *testing.T) {
 	tests := []struct {
-		name        string
-		setupConfig *domain.Config
 		wantErr     error
+		setupConfig *domain.Config
 		validate    func(t *testing.T, targets []string)
+		name        string
 	}{
 		{
 			name: "successfully gets install targets",
@@ -925,10 +925,10 @@ func TestConfigManager_GetInstallTargets(t *testing.T) {
 // Requirements: 8.1, 8.2
 func TestConfigManager_ListSkills(t *testing.T) {
 	tests := []struct {
-		name        string
-		setupConfig *domain.Config
 		wantErr     error
+		setupConfig *domain.Config
 		validate    func(t *testing.T, skills []*domain.Skill)
+		name        string
 	}{
 		{
 			name: "successfully lists all skills",

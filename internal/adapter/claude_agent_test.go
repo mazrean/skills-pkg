@@ -87,7 +87,7 @@ func hasPathSuffix(path, suffix string) bool {
 	}
 
 	// Compare suffix parts from the end
-	for i := 0; i < len(suffixParts); i++ {
+	for i := range len(suffixParts) {
 		if pathParts[len(pathParts)-len(suffixParts)+i] != suffixParts[i] {
 			return false
 		}

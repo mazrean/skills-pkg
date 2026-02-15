@@ -41,11 +41,11 @@ func TestHashVerificationIntegration(t *testing.T) {
 		for path, content := range testFiles {
 			fullPath := filepath.Join(skillDir, path)
 			dir := filepath.Dir(fullPath)
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				t.Fatalf("Failed to create directory %s: %v", dir, err)
+			if mkdirErr := os.MkdirAll(dir, 0o755); mkdirErr != nil {
+				t.Fatalf("Failed to create directory %s: %v", dir, mkdirErr)
 			}
-			if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
-				t.Fatalf("Failed to create file %s: %v", path, err)
+			if writeErr := os.WriteFile(fullPath, []byte(content), 0o644); writeErr != nil {
+				t.Fatalf("Failed to create file %s: %v", path, writeErr)
 			}
 		}
 
@@ -207,25 +207,23 @@ func TestHashVerificationIntegration(t *testing.T) {
 		numSkills := 3
 		skills := make([]*domain.Skill, numSkills)
 
-		for i := 0; i < numSkills; i++ {
+		for i := range numSkills {
 			skillName := filepath.Join(installDir, filepath.Base(tempDir)+"-skill-"+string(rune('A'+i)))
 			skillDir := filepath.Join(installDir, filepath.Base(skillName))
 
-			err := os.MkdirAll(skillDir, 0o755)
-			if err != nil {
-				t.Fatalf("Failed to create skill directory %s: %v", skillDir, err)
+			if mkdirErr := os.MkdirAll(skillDir, 0o755); mkdirErr != nil {
+				t.Fatalf("Failed to create skill directory %s: %v", skillDir, mkdirErr)
 			}
 
 			testFile := filepath.Join(skillDir, "skill.go")
 			content := "package skill" + string(rune('A'+i))
-			err = os.WriteFile(testFile, []byte(content), 0o644)
-			if err != nil {
-				t.Fatalf("Failed to create test file: %v", err)
+			if writeErr := os.WriteFile(testFile, []byte(content), 0o644); writeErr != nil {
+				t.Fatalf("Failed to create test file: %v", writeErr)
 			}
 
-			hashResult, err := hashService.CalculateHash(ctx, skillDir)
-			if err != nil {
-				t.Fatalf("CalculateHash failed: %v", err)
+			hashResult, hashErr := hashService.CalculateHash(ctx, skillDir)
+			if hashErr != nil {
+				t.Fatalf("CalculateHash failed: %v", hashErr)
 			}
 
 			skills[i] = &domain.Skill{

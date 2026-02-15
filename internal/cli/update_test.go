@@ -89,10 +89,8 @@ func TestUpdateCmd_Run(t *testing.T) {
 				if tt.wantErrType != nil && !errors.Is(err, tt.wantErrType) {
 					t.Errorf("expected error type %v, got %v", tt.wantErrType, err)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	}

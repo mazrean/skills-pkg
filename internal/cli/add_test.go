@@ -13,16 +13,16 @@ func TestAddCmd_Run(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		skillName       string
-		source          string
-		url             string
-		version         string
-		packageManager  string
-		setupFunc       func(t *testing.T) (configPath string, cleanup func())
-		wantErr         bool
-		wantErrType     error
-		checkFunc       func(t *testing.T, configPath string)
+		wantErrType    error
+		setupFunc      func(t *testing.T) (configPath string, cleanup func())
+		checkFunc      func(t *testing.T, configPath string)
+		name           string
+		skillName      string
+		source         string
+		url            string
+		version        string
+		packageManager string
+		wantErr        bool
 	}{
 		{
 			name:           "success: add git skill",
@@ -267,10 +267,8 @@ func TestAddCmd_Run(t *testing.T) {
 				if tt.wantErrType != nil && !errors.Is(err, tt.wantErrType) {
 					t.Errorf("expected error type %v, got %v", tt.wantErrType, err)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("unexpected error: %v", err)
 			}
 
 			// Run additional checks

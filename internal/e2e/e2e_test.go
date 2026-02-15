@@ -37,7 +37,7 @@ func TestE2ECompleteFlow(t *testing.T) {
 
 	// Setup: Build the CLI binary
 	binaryPath := buildCLIBinary(t, workspaceDir)
-	defer os.Remove(binaryPath)
+	defer func() { _ = os.Remove(binaryPath) }()
 
 	// Setup: Define install targets
 	installDir1 := filepath.Join(workspaceDir, "agent1", "skills")
@@ -45,7 +45,8 @@ func TestE2ECompleteFlow(t *testing.T) {
 
 	// Test: Step 1 - Initialize project
 	t.Run("init", func(t *testing.T) {
-		cmd := exec.Command(binaryPath, "init",
+		ctx := context.Background()
+		cmd := exec.CommandContext(ctx, binaryPath, "init",
 			"--install-dir", installDir1,
 			"--install-dir", installDir2,
 		)
@@ -69,7 +70,8 @@ func TestE2ECompleteFlow(t *testing.T) {
 
 	// Test: Step 2 - Add a skill
 	t.Run("add", func(t *testing.T) {
-		cmd := exec.Command(binaryPath, "add",
+		ctx := context.Background()
+		cmd := exec.CommandContext(ctx, binaryPath, "add",
 			"test-skill",
 			"--source", "git",
 			"--url", testRepoURL,
@@ -89,7 +91,8 @@ func TestE2ECompleteFlow(t *testing.T) {
 
 	// Test: Step 3 - Install the skill
 	t.Run("install", func(t *testing.T) {
-		cmd := exec.Command(binaryPath, "install", "test-skill")
+		ctx := context.Background()
+		cmd := exec.CommandContext(ctx, binaryPath, "install", "test-skill")
 		cmd.Dir = projectDir
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -115,7 +118,8 @@ func TestE2ECompleteFlow(t *testing.T) {
 
 	// Test: Step 4 - Verify skills
 	t.Run("verify", func(t *testing.T) {
-		cmd := exec.Command(binaryPath, "verify")
+		ctx := context.Background()
+		cmd := exec.CommandContext(ctx, binaryPath, "verify")
 		cmd.Dir = projectDir
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -145,7 +149,8 @@ func TestE2ECompleteFlow(t *testing.T) {
 
 	// Test: Step 5 - List skills
 	t.Run("list", func(t *testing.T) {
-		cmd := exec.Command(binaryPath, "list")
+		ctx := context.Background()
+		cmd := exec.CommandContext(ctx, binaryPath, "list")
 		cmd.Dir = projectDir
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -166,7 +171,8 @@ func TestE2ECompleteFlow(t *testing.T) {
 
 	// Test: Step 6 - Uninstall the skill
 	t.Run("uninstall", func(t *testing.T) {
-		cmd := exec.Command(binaryPath, "uninstall", "test-skill")
+		ctx := context.Background()
+		cmd := exec.CommandContext(ctx, binaryPath, "uninstall", "test-skill")
 		cmd.Dir = projectDir
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -211,7 +217,7 @@ func TestE2EMultipleAgentInstallation(t *testing.T) {
 
 	// Setup: Build the CLI binary
 	binaryPath := buildCLIBinary(t, workspaceDir)
-	defer os.Remove(binaryPath)
+	defer func() { _ = os.Remove(binaryPath) }()
 
 	// Setup: Define install targets for multiple agents
 	agentDirs := []string{
@@ -222,12 +228,13 @@ func TestE2EMultipleAgentInstallation(t *testing.T) {
 
 	// Test: Initialize with multiple agent directories
 	t.Run("init_multiple_agents", func(t *testing.T) {
+		ctx := context.Background()
 		args := []string{"init"}
 		for _, dir := range agentDirs {
 			args = append(args, "--install-dir", dir)
 		}
 
-		cmd := exec.Command(binaryPath, args...)
+		cmd := exec.CommandContext(ctx, binaryPath, args...)
 		cmd.Dir = projectDir
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -241,8 +248,9 @@ func TestE2EMultipleAgentInstallation(t *testing.T) {
 
 	// Test: Add and install skill
 	t.Run("add_and_install", func(t *testing.T) {
+		ctx := context.Background()
 		// Add skill
-		cmd := exec.Command(binaryPath, "add",
+		cmd := exec.CommandContext(ctx, binaryPath, "add",
 			"multi-agent-skill",
 			"--source", "git",
 			"--url", testRepoURL,
@@ -254,7 +262,7 @@ func TestE2EMultipleAgentInstallation(t *testing.T) {
 		}
 
 		// Install skill
-		cmd = exec.Command(binaryPath, "install")
+		cmd = exec.CommandContext(ctx, binaryPath, "install")
 		cmd.Dir = projectDir
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -297,19 +305,20 @@ func TestE2EHashMismatchWarning(t *testing.T) {
 
 	// Setup: Build the CLI binary
 	binaryPath := buildCLIBinary(t, workspaceDir)
-	defer os.Remove(binaryPath)
+	defer func() { _ = os.Remove(binaryPath) }()
 
 	// Setup: Define install target
 	installDir := filepath.Join(workspaceDir, "skills")
 
 	// Test: Initialize and install skill
-	cmd := exec.Command(binaryPath, "init", "--install-dir", installDir)
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, binaryPath, "init", "--install-dir", installDir)
 	cmd.Dir = projectDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("init command failed: %v\nOutput: %s", err, output)
 	}
 
-	cmd = exec.Command(binaryPath, "add",
+	cmd = exec.CommandContext(ctx, binaryPath, "add",
 		"tamper-test-skill",
 		"--source", "git",
 		"--url", testRepoURL,
@@ -320,7 +329,7 @@ func TestE2EHashMismatchWarning(t *testing.T) {
 		t.Fatalf("add command failed: %v\nOutput: %s", err, output)
 	}
 
-	cmd = exec.Command(binaryPath, "install")
+	cmd = exec.CommandContext(ctx, binaryPath, "install")
 	cmd.Dir = projectDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("install command failed: %v\nOutput: %s", err, output)
@@ -328,6 +337,7 @@ func TestE2EHashMismatchWarning(t *testing.T) {
 
 	// Test: Tamper with installed skill
 	t.Run("tamper_and_verify", func(t *testing.T) {
+		ctx := context.Background()
 		// Modify the installed skill to trigger hash mismatch
 		skillPath := filepath.Join(installDir, "tamper-test-skill")
 		tamperFile := filepath.Join(skillPath, "TAMPER.txt")
@@ -336,7 +346,7 @@ func TestE2EHashMismatchWarning(t *testing.T) {
 		}
 
 		// Run verify command
-		cmd := exec.Command(binaryPath, "verify")
+		cmd := exec.CommandContext(ctx, binaryPath, "verify")
 		cmd.Dir = projectDir
 		output, _ := cmd.CombinedOutput()
 
@@ -365,24 +375,25 @@ func TestE2EErrorHandlingAndExitCodes(t *testing.T) {
 	// Setup: Build the CLI binary
 	workspaceDir := t.TempDir()
 	binaryPath := buildCLIBinary(t, workspaceDir)
-	defer os.Remove(binaryPath)
+	defer func() { _ = os.Remove(binaryPath) }()
 
 	testCases := []struct {
 		name         string
+		wantInOutput string
 		setupFunc    func(t *testing.T) string // Returns project directory
 		command      []string
 		wantExitCode int
-		wantInOutput string
 	}{
 		{
 			name: "init_on_existing_config_should_fail",
 			setupFunc: func(t *testing.T) string {
+				ctx := context.Background()
 				projectDir := filepath.Join(workspaceDir, "existing-config")
 				if err := os.MkdirAll(projectDir, 0755); err != nil {
 					t.Fatalf("Failed to create project directory: %v", err)
 				}
 				// Create existing config
-				cmd := exec.Command(binaryPath, "init")
+				cmd := exec.CommandContext(ctx, binaryPath, "init")
 				cmd.Dir = projectDir
 				if output, err := cmd.CombinedOutput(); err != nil {
 					t.Fatalf("First init failed: %v\nOutput: %s", err, output)
@@ -409,11 +420,12 @@ func TestE2EErrorHandlingAndExitCodes(t *testing.T) {
 		{
 			name: "add_nonexistent_skill_source_should_fail",
 			setupFunc: func(t *testing.T) string {
+				ctx := context.Background()
 				projectDir := filepath.Join(workspaceDir, "invalid-source")
 				if err := os.MkdirAll(projectDir, 0755); err != nil {
 					t.Fatalf("Failed to create project directory: %v", err)
 				}
-				cmd := exec.Command(binaryPath, "init")
+				cmd := exec.CommandContext(ctx, binaryPath, "init")
 				cmd.Dir = projectDir
 				if output, err := cmd.CombinedOutput(); err != nil {
 					t.Fatalf("init failed: %v\nOutput: %s", err, output)
@@ -430,11 +442,12 @@ func TestE2EErrorHandlingAndExitCodes(t *testing.T) {
 		{
 			name: "uninstall_nonexistent_skill_should_fail",
 			setupFunc: func(t *testing.T) string {
+				ctx := context.Background()
 				projectDir := filepath.Join(workspaceDir, "no-skill")
 				if err := os.MkdirAll(projectDir, 0755); err != nil {
 					t.Fatalf("Failed to create project directory: %v", err)
 				}
-				cmd := exec.Command(binaryPath, "init")
+				cmd := exec.CommandContext(ctx, binaryPath, "init")
 				cmd.Dir = projectDir
 				if output, err := cmd.CombinedOutput(); err != nil {
 					t.Fatalf("init failed: %v\nOutput: %s", err, output)
@@ -449,9 +462,10 @@ func TestE2EErrorHandlingAndExitCodes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
 			projectDir := tc.setupFunc(t)
 
-			cmd := exec.Command(binaryPath, tc.command...)
+			cmd := exec.CommandContext(ctx, binaryPath, tc.command...)
 			cmd.Dir = projectDir
 			output, _ := cmd.CombinedOutput()
 
@@ -487,11 +501,12 @@ func TestE2EVerboseMode(t *testing.T) {
 
 	// Setup: Build the CLI binary
 	binaryPath := buildCLIBinary(t, workspaceDir)
-	defer os.Remove(binaryPath)
+	defer func() { _ = os.Remove(binaryPath) }()
 
 	// Test: Run init with verbose flag
 	t.Run("verbose_init", func(t *testing.T) {
-		cmd := exec.Command(binaryPath, "--verbose", "init")
+		ctx := context.Background()
+		cmd := exec.CommandContext(ctx, binaryPath, "--verbose", "init")
 		cmd.Dir = projectDir
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
@@ -515,7 +530,8 @@ func TestE2EVerboseMode(t *testing.T) {
 
 	// Test: Run list with verbose flag
 	t.Run("verbose_list", func(t *testing.T) {
-		cmd := exec.Command(binaryPath, "--verbose", "list")
+		ctx := context.Background()
+		cmd := exec.CommandContext(ctx, binaryPath, "--verbose", "list")
 		cmd.Dir = projectDir
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
@@ -553,18 +569,18 @@ This is a test skill for E2E testing.
 
 Test usage instructions.
 `
-	if err := os.WriteFile(skillMdPath, []byte(skillContent), 0644); err != nil {
-		t.Fatalf("Failed to create SKILL.md: %v", err)
+	if writeErr := os.WriteFile(skillMdPath, []byte(skillContent), 0644); writeErr != nil {
+		t.Fatalf("Failed to create SKILL.md: %v", writeErr)
 	}
 
 	// Add file to Git
-	w, err := repo.Worktree()
-	if err != nil {
-		t.Fatalf("Failed to get worktree: %v", err)
+	w, wErr := repo.Worktree()
+	if wErr != nil {
+		t.Fatalf("Failed to get worktree: %v", wErr)
 	}
 
-	if _, err := w.Add("SKILL.md"); err != nil {
-		t.Fatalf("Failed to add file to Git: %v", err)
+	if _, addErr := w.Add("SKILL.md"); addErr != nil {
+		t.Fatalf("Failed to add file to Git: %v", addErr)
 	}
 
 	// Commit

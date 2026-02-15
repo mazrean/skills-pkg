@@ -13,11 +13,11 @@ func TestInstallCmd_Run(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantErrType error
+		setupFunc   func(t *testing.T) (configPath string, cleanup func())
 		name        string
 		skills      []string
-		setupFunc   func(t *testing.T) (configPath string, cleanup func())
 		wantErr     bool
-		wantErrType error
 	}{
 		{
 			name:   "error: config file not found (install all)",
@@ -89,10 +89,8 @@ func TestInstallCmd_Run(t *testing.T) {
 				if tt.wantErrType != nil && !errors.Is(err, tt.wantErrType) {
 					t.Errorf("expected error type %v, got %v", tt.wantErrType, err)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	}

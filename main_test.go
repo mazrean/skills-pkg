@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"testing"
@@ -27,15 +28,16 @@ func TestCLIExitCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
 			// Build the binary for testing
-			cmd := exec.Command("go", "build", "-o", "skills-pkg-test", ".")
-			if err := cmd.Run(); err != nil {
+			buildCmd := exec.CommandContext(ctx, "go", "build", "-o", "skills-pkg-test", ".")
+			if err := buildCmd.Run(); err != nil {
 				t.Fatalf("Failed to build binary: %v", err)
 			}
-			defer os.Remove("skills-pkg-test")
+			defer func() { _ = os.Remove("skills-pkg-test") }()
 
 			// Run with test args
-			testCmd := exec.Command("./skills-pkg-test", tt.args...)
+			testCmd := exec.CommandContext(ctx, "./skills-pkg-test", tt.args...)
 			err := testCmd.Run()
 
 			var gotCode int
@@ -77,15 +79,16 @@ func TestVerboseFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
 			// Build the binary for testing
-			cmd := exec.Command("go", "build", "-o", "skills-pkg-test", ".")
-			if err := cmd.Run(); err != nil {
+			buildCmd := exec.CommandContext(ctx, "go", "build", "-o", "skills-pkg-test", ".")
+			if err := buildCmd.Run(); err != nil {
 				t.Fatalf("Failed to build binary: %v", err)
 			}
-			defer os.Remove("skills-pkg-test")
+			defer func() { _ = os.Remove("skills-pkg-test") }()
 
 			// Run with test args
-			testCmd := exec.Command("./skills-pkg-test", tt.args...)
+			testCmd := exec.CommandContext(ctx, "./skills-pkg-test", tt.args...)
 			err := testCmd.Run()
 
 			if tt.wantErr && err == nil {
@@ -109,15 +112,16 @@ func TestSubcommandStructure(t *testing.T) {
 
 	for _, subcmd := range subcommands {
 		t.Run("subcommand_"+subcmd, func(t *testing.T) {
+			ctx := context.Background()
 			// Build the binary for testing
-			cmd := exec.Command("go", "build", "-o", "skills-pkg-test", ".")
+			cmd := exec.CommandContext(ctx, "go", "build", "-o", "skills-pkg-test", ".")
 			if err := cmd.Run(); err != nil {
 				t.Fatalf("Failed to build binary: %v", err)
 			}
-			defer os.Remove("skills-pkg-test")
+			defer func() { _ = os.Remove("skills-pkg-test") }()
 
 			// Run with help to check if subcommand exists
-			testCmd := exec.Command("./skills-pkg-test", subcmd, "--help")
+			testCmd := exec.CommandContext(ctx, "./skills-pkg-test", subcmd, "--help")
 			err := testCmd.Run()
 
 			// Subcommand help should exit with code 0

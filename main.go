@@ -9,15 +9,14 @@ import (
 
 // CLI represents the command-line interface structure
 var CLI struct {
-	Init      cli.InitCmd      `cmd:"" help:"Initialize project with .skillspkg.toml"`
+	List      cli.ListCmd      `cmd:"" help:"List installed skills"`
+	Verify    cli.VerifyCmd    `cmd:"" help:"Verify skill integrity with hash"`
 	Add       cli.AddCmd       `cmd:"" help:"Add a skill to configuration"`
+	Uninstall cli.UninstallCmd `cmd:"" help:"Uninstall skills"`
+	Init      cli.InitCmd      `cmd:"" help:"Initialize project with .skillspkg.toml"`
 	Install   cli.InstallCmd   `cmd:"" help:"Install skills from configuration"`
 	Update    cli.UpdateCmd    `cmd:"" help:"Update skills to latest versions"`
-	List      cli.ListCmd      `cmd:"" help:"List installed skills"`
-	Uninstall cli.UninstallCmd `cmd:"" help:"Uninstall skills"`
-	Verify    cli.VerifyCmd    `cmd:"" help:"Verify skill integrity with hash"`
-
-	Verbose bool `help:"Enable verbose logging" short:"v" env:"SKILLSPKG_VERBOSE"`
+	Verbose   bool             `help:"Enable verbose logging" short:"v" env:"SKILLSPKG_VERBOSE"`
 }
 
 // Version information (will be injected by GoReleaser via ldflags)

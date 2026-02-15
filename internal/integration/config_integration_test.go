@@ -33,7 +33,7 @@ func TestConfigManagerTOMLIntegration(t *testing.T) {
 		}
 
 		// Verify: Configuration file exists
-		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		if _, statErr := os.Stat(configPath); os.IsNotExist(statErr) {
 			t.Fatalf("Configuration file was not created")
 		}
 
@@ -141,7 +141,7 @@ skills = "not an array"
 		const numReaders = 10
 		errChan := make(chan error, numReaders)
 
-		for i := 0; i < numReaders; i++ {
+		for range numReaders {
 			go func() {
 				_, err := configManager.Load(ctx)
 				errChan <- err
@@ -149,7 +149,7 @@ skills = "not an array"
 		}
 
 		// Verify: All reads succeeded
-		for i := 0; i < numReaders; i++ {
+		for i := range numReaders {
 			if err := <-errChan; err != nil {
 				t.Errorf("Concurrent read %d failed: %v", i, err)
 			}
@@ -200,9 +200,8 @@ func TestSkillOperationIntegration(t *testing.T) {
 		}
 
 		for _, skill := range skills {
-			err := configManager.AddSkill(ctx, skill)
-			if err != nil {
-				t.Fatalf("AddSkill failed for %s: %v", skill.Name, err)
+			if addErr := configManager.AddSkill(ctx, skill); addErr != nil {
+				t.Fatalf("AddSkill failed for %s: %v", skill.Name, addErr)
 			}
 		}
 

@@ -17,11 +17,11 @@ func TestVerifyCmd_Run(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		setupFunc   func(t *testing.T) (configPath string, cleanup func())
-		wantErr     bool
 		wantErrType error
+		setupFunc   func(t *testing.T) (configPath string, cleanup func())
 		checkFunc   func(t *testing.T, output string)
+		name        string
+		wantErr     bool
 	}{
 		{
 			name: "success: all skills verified with matching hashes",

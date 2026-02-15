@@ -15,11 +15,11 @@ func TestListCmd_Run(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		setupFunc func(t *testing.T) (configPath string, cleanup func())
-		wantErr   bool
 		wantErrType error
-		checkFunc func(t *testing.T, output string)
+		setupFunc   func(t *testing.T) (configPath string, cleanup func())
+		checkFunc   func(t *testing.T, output string)
+		name        string
+		wantErr     bool
 	}{
 		{
 			name: "success: list skills with multiple entries",

@@ -19,8 +19,8 @@ const (
 // InitCmd represents the init command
 // Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 12.1, 12.2, 12.3, 12.4
 type InitCmd struct {
-	InstallDir []string `help:"Custom install directory (can be specified multiple times)" short:"d"`
 	Agent      string   `help:"Agent name (e.g., 'claude') to use default directory" short:"a"`
+	InstallDir []string `help:"Custom install directory (can be specified multiple times)" short:"d"`
 }
 
 // Run executes the init command

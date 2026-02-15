@@ -27,8 +27,6 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 
 		// Setup: Create temporary directories
 		tempDir := t.TempDir()
-		configPath := filepath.Join(tempDir, ".skillspkg.toml")
-		installDir := filepath.Join(tempDir, "skills")
 
 		// Create a local test Git repository
 		testRepoDir := filepath.Join(tempDir, "test-repo")
@@ -46,6 +44,9 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 		// Note: We're skipping actual git init for now as it requires git binary
 		// This test validates the integration flow, actual git operations are tested in adapter tests
 		t.Skip("Skipping Git integration test - requires local git setup")
+
+		configPath := filepath.Join(tempDir, ".skillspkg.toml")
+		installDir := filepath.Join(tempDir, "skills")
 
 		ctx := context.Background()
 
@@ -86,7 +87,7 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 
 		// Verify: Skill directory exists
 		skillPath := filepath.Join(installDir, "test-git-skill")
-		if _, err := os.Stat(skillPath); os.IsNotExist(err) {
+		if _, statErr := os.Stat(skillPath); os.IsNotExist(statErr) {
 			t.Errorf("Skill directory was not created: %s", skillPath)
 		}
 

@@ -166,8 +166,8 @@ func TestGoModAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
 		source  *port.Source
+		name    string
 		wantErr bool
 	}{
 		{

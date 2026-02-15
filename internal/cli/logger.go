@@ -1,3 +1,4 @@
+// Package cli provides command-line interface implementations for skills-pkg.
 package cli
 
 import (
@@ -23,19 +24,19 @@ func NewLogger(verbose bool) *Logger {
 }
 
 // Info prints an informational message to stdout
-func (l *Logger) Info(format string, args ...interface{}) {
-	fmt.Fprintf(l.out, format+"\n", args...)
+func (l *Logger) Info(format string, args ...any) {
+	_, _ = fmt.Fprintf(l.out, format+"\n", args...)
 }
 
 // Error prints an error message to stderr
-func (l *Logger) Error(format string, args ...interface{}) {
-	fmt.Fprintf(l.errOut, format+"\n", args...)
+func (l *Logger) Error(format string, args ...any) {
+	_, _ = fmt.Fprintf(l.errOut, format+"\n", args...)
 }
 
 // Verbose prints a verbose debug message to stdout if verbose mode is enabled
-func (l *Logger) Verbose(format string, args ...interface{}) {
+func (l *Logger) Verbose(format string, args ...any) {
 	if l.verbose {
-		fmt.Fprintf(l.out, "[VERBOSE] "+format+"\n", args...)
+		_, _ = fmt.Fprintf(l.out, "[VERBOSE] "+format+"\n", args...)
 	}
 }
 

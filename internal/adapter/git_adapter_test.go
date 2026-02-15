@@ -37,8 +37,8 @@ func TestGitAdapter_Download_WithTag(t *testing.T) {
 
 	// Create temp directory for download
 	tempDir := t.TempDir()
-	os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer os.Unsetenv("SKILLSPKG_TEMP_DIR")
+	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
+	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
 
 	result, err := adapter.Download(ctx, source, version)
 	if err != nil {
@@ -71,8 +71,8 @@ func TestGitAdapter_Download_WithCommitHash(t *testing.T) {
 	version := "abc123def456" // This will likely fail, which is expected
 
 	tempDir := t.TempDir()
-	os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer os.Unsetenv("SKILLSPKG_TEMP_DIR")
+	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
+	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
 
 	result, err := adapter.Download(ctx, source, version)
 	if err != nil {
@@ -102,8 +102,8 @@ func TestGitAdapter_Download_WithLatest(t *testing.T) {
 	version := "latest"
 
 	tempDir := t.TempDir()
-	os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer os.Unsetenv("SKILLSPKG_TEMP_DIR")
+	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
+	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
 
 	result, err := adapter.Download(ctx, source, version)
 	if err != nil {
@@ -132,8 +132,8 @@ func TestGitAdapter_Download_InvalidURL(t *testing.T) {
 	version := "latest"
 
 	tempDir := t.TempDir()
-	os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer os.Unsetenv("SKILLSPKG_TEMP_DIR")
+	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
+	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
 
 	_, err := adapter.Download(ctx, source, version)
 	if err == nil {
@@ -161,8 +161,8 @@ func TestGitAdapter_Download_NonExistentVersion(t *testing.T) {
 	version := "v999.999.999" // Non-existent version
 
 	tempDir := t.TempDir()
-	os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer os.Unsetenv("SKILLSPKG_TEMP_DIR")
+	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
+	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
 
 	_, err := adapter.Download(ctx, source, version)
 	if err == nil {
@@ -231,8 +231,8 @@ func TestGitAdapter_Download_CleansUpOnError(t *testing.T) {
 	}
 
 	tempDir := t.TempDir()
-	os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
-	defer os.Unsetenv("SKILLSPKG_TEMP_DIR")
+	_ = os.Setenv("SKILLSPKG_TEMP_DIR", tempDir)
+	defer func() { _ = os.Unsetenv("SKILLSPKG_TEMP_DIR") }()
 
 	_, err := adapter.Download(ctx, source, "latest")
 	if err == nil {
