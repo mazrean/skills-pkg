@@ -23,6 +23,9 @@ import (
 const (
 	// dirPerms is the default permission for created directories
 	dirPerms = 0755
+
+	// minGitLsRemoteFields is the minimum number of fields in git ls-remote output
+	minGitLsRemoteFields = 2
 )
 
 // proxyEntry represents a single entry in GOPROXY.
@@ -484,7 +487,7 @@ func (a *GoModAdapter) fetchLatestVersionDirect(ctx context.Context, modulePath 
 		}
 
 		parts := strings.Fields(line)
-		if len(parts) < 2 {
+		if len(parts) < minGitLsRemoteFields {
 			continue
 		}
 
@@ -521,7 +524,8 @@ func (a *GoModAdapter) downloadDirect(ctx context.Context, modulePath, version, 
 
 	// Clone the repository with the specified tag/branch
 	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", "--branch", version, repoURL, cloneDir)
-	if err := cmd.Run(); err != nil {
+	err = cmd.Run()
+	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			return fmt.Errorf("%w: failed to clone repository %s at version %s: %s", domain.ErrNetworkFailure, repoURL, version, string(exitErr.Stderr))
@@ -576,7 +580,8 @@ func copyFile(src, dst string) error {
 		_ = dstFile.Close()
 	}()
 
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
 		return err
 	}
 
@@ -597,7 +602,8 @@ func copyDir(src, dst string) error {
 		return err
 	}
 
-	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
+	err = os.MkdirAll(dst, srcInfo.Mode())
+	if err != nil {
 		return err
 	}
 
@@ -612,11 +618,13 @@ func copyDir(src, dst string) error {
 		dstPath := filepath.Join(dst, entry.Name())
 
 		if entry.IsDir() {
-			if err := copyDir(srcPath, dstPath); err != nil {
+			err = copyDir(srcPath, dstPath)
+			if err != nil {
 				return err
 			}
 		} else {
-			if err := copyFile(srcPath, dstPath); err != nil {
+			err = copyFile(srcPath, dstPath)
+			if err != nil {
 				return err
 			}
 		}
