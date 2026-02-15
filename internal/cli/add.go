@@ -7,7 +7,8 @@ import (
 	"reflect"
 
 	"github.com/alecthomas/kong"
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/pkgmanager"
+	"github.com/mazrean/skills-pkg/internal/adapter/service"
 	"github.com/mazrean/skills-pkg/internal/domain"
 	"github.com/mazrean/skills-pkg/internal/port"
 )
@@ -122,12 +123,12 @@ func (c *AddCmd) run(configPath string, verbose bool, install bool) error {
 		logger.Verbose("Starting installation process")
 
 		// Create HashService
-		hashService := adapter.NewDirhashService()
+		hashService := service.NewDirhash()
 
 		// Create PackageManagers
 		packageManagers := []port.PackageManager{
-			adapter.NewGitAdapter(),
-			adapter.NewGoModAdapter(),
+			pkgmanager.NewGit(),
+			pkgmanager.NewGoMod(),
 		}
 
 		// Create SkillManager

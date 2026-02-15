@@ -1,4 +1,4 @@
-package adapter
+package service
 
 import (
 	"context"
@@ -10,21 +10,21 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-// DirhashService is an implementation of HashService using golang.org/x/mod/sumdb/dirhash.
+// Dirhash is an implementation of HashService using golang.org/x/mod/sumdb/dirhash.
 // It calculates directory hashes using SHA-256 algorithm.
 // Requirements: 5.1
-type DirhashService struct{}
+type Dirhash struct{}
 
-// NewDirhashService creates a new DirhashService instance.
-func NewDirhashService() *DirhashService {
-	return &DirhashService{}
+// NewDirhash creates a new Dirhash instance.
+func NewDirhash() *Dirhash {
+	return &Dirhash{}
 }
 
 // CalculateHash calculates the hash of a directory recursively.
 // It includes both file names and file contents in the hash calculation.
 // The hash is calculated using the SHA-256 algorithm via golang.org/x/mod/sumdb/dirhash.HashDir.
 // Requirements: 5.1, 12.2, 12.3
-func (s *DirhashService) CalculateHash(ctx context.Context, dirPath string) (*port.HashResult, error) {
+func (s *Dirhash) CalculateHash(ctx context.Context, dirPath string) (*port.HashResult, error) {
 	// Verify that the directory exists
 	info, err := os.Stat(dirPath)
 	if err != nil {
@@ -55,6 +55,6 @@ func (s *DirhashService) CalculateHash(ctx context.Context, dirPath string) (*po
 
 // HashAlgorithm returns the hash algorithm name used by this service.
 // Requirements: 5.1, 5.2
-func (s *DirhashService) HashAlgorithm() string {
+func (s *Dirhash) HashAlgorithm() string {
 	return "sha256"
 }

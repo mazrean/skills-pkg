@@ -1,14 +1,14 @@
-package adapter_test
+package agent_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/agent"
 )
 
-func TestOpenCodeAgentAdapter_ResolveAgentDir(t *testing.T) {
+func TestGoose_ResolveAgentDir(t *testing.T) {
 	tests := []struct {
 		name            string
 		agentName       string
@@ -18,11 +18,11 @@ func TestOpenCodeAgentAdapter_ResolveAgentDir(t *testing.T) {
 		checkHomePrefix bool
 	}{
 		{
-			name:            "opencode agent",
-			agentName:       "opencode",
+			name:            "goose agent",
+			agentName:       "goose",
 			wantErr:         false,
 			checkAbsolute:   true,
-			checkSuffix:     filepath.Join(".config", "opencode", "skill"),
+			checkSuffix:     filepath.Join(".config", "goose", "skills"),
 			checkHomePrefix: true,
 		},
 		{
@@ -39,7 +39,7 @@ func TestOpenCodeAgentAdapter_ResolveAgentDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewOpenCodeAgentAdapter()
+			provider := agent.NewGoose()
 
 			dir, err := provider.ResolveAgentDir(tt.agentName)
 			if (err != nil) != tt.wantErr {
@@ -67,7 +67,7 @@ func TestOpenCodeAgentAdapter_ResolveAgentDir(t *testing.T) {
 				if err != nil {
 					t.Fatalf("os.UserHomeDir() error = %v", err)
 				}
-				expected := filepath.Join(home, ".config", "opencode", "skill")
+				expected := filepath.Join(home, ".config", "goose", "skills")
 				if dir != expected {
 					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
 				}
@@ -76,20 +76,20 @@ func TestOpenCodeAgentAdapter_ResolveAgentDir(t *testing.T) {
 	}
 }
 
-func TestOpenCodeAgentAdapter_AgentName(t *testing.T) {
+func TestGoose_AgentName(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
 	}{
 		{
-			name: "should return opencode",
-			want: "opencode",
+			name: "should return goose",
+			want: "goose",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewOpenCodeAgentAdapter()
+			provider := agent.NewGoose()
 			if got := provider.AgentName(); got != tt.want {
 				t.Errorf("AgentName() = %q, want %q", got, tt.want)
 			}

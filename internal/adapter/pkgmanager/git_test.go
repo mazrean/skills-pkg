@@ -1,4 +1,4 @@
-package adapter
+package pkgmanager
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-func TestGitAdapter_SourceType(t *testing.T) {
+func TestGit_SourceType(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
@@ -22,7 +22,7 @@ func TestGitAdapter_SourceType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := NewGitAdapter()
+			adapter := NewGit()
 			if got := adapter.SourceType(); got != tt.want {
 				t.Errorf("SourceType() = %v, want %v", got, tt.want)
 			}
@@ -30,7 +30,7 @@ func TestGitAdapter_SourceType(t *testing.T) {
 	}
 }
 
-func TestGitAdapter_Download(t *testing.T) {
+func TestGit_Download(t *testing.T) {
 	tests := []struct {
 		checkVersion     func(t *testing.T, got string)
 		name             string
@@ -101,7 +101,7 @@ func TestGitAdapter_Download(t *testing.T) {
 				t.Skip("Skipping integration test in short mode")
 			}
 
-			adapter := NewGitAdapter()
+			adapter := NewGit()
 			ctx := context.Background()
 
 			source := &port.Source{
@@ -142,7 +142,7 @@ func TestGitAdapter_Download(t *testing.T) {
 	}
 }
 
-func TestGitAdapter_GetLatestVersion(t *testing.T) {
+func TestGit_GetLatestVersion(t *testing.T) {
 	tests := []struct {
 		checkResult func(t *testing.T, version string)
 		name        string
@@ -178,7 +178,7 @@ func TestGitAdapter_GetLatestVersion(t *testing.T) {
 				t.Skip("Skipping integration test in short mode")
 			}
 
-			adapter := NewGitAdapter()
+			adapter := NewGit()
 			ctx := context.Background()
 
 			source := &port.Source{
@@ -204,7 +204,7 @@ func TestGitAdapter_GetLatestVersion(t *testing.T) {
 	}
 }
 
-func TestGitAdapter_Download_CleansUpOnError(t *testing.T) {
+func TestGit_Download_CleansUpOnError(t *testing.T) {
 	tests := []struct {
 		name    string
 		url     string
@@ -221,7 +221,7 @@ func TestGitAdapter_Download_CleansUpOnError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := NewGitAdapter()
+			adapter := NewGit()
 			ctx := context.Background()
 
 			source := &port.Source{

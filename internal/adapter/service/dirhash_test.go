@@ -1,4 +1,4 @@
-package adapter
+package service
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-// TestDirhashService_CalculateHash tests the CalculateHash method
-func TestDirhashService_CalculateHash(t *testing.T) {
+// TestDirhash_CalculateHash tests the CalculateHash method
+func TestDirhash_CalculateHash(t *testing.T) {
 	tests := []struct {
 		setupFunc func(t *testing.T) string
 		checkFunc func(t *testing.T, result *port.HashResult, err error)
@@ -64,7 +64,7 @@ func TestDirhashService_CalculateHash(t *testing.T) {
 					t.Fatalf("Failed to create test file: %v", err)
 				}
 
-				svc := NewDirhashService()
+				svc := NewDirhash()
 				ctx := context.Background()
 				result1, err1 := svc.CalculateHash(ctx, tmpDir1)
 				result2, err2 := svc.CalculateHash(ctx, tmpDir2)
@@ -96,7 +96,7 @@ func TestDirhashService_CalculateHash(t *testing.T) {
 					t.Fatalf("Failed to create test file: %v", err)
 				}
 
-				svc := NewDirhashService()
+				svc := NewDirhash()
 				ctx := context.Background()
 				result1, err1 := svc.CalculateHash(ctx, tmpDir1)
 				result2, err2 := svc.CalculateHash(ctx, tmpDir2)
@@ -169,7 +169,7 @@ func TestDirhashService_CalculateHash(t *testing.T) {
 
 			dirPath := tt.setupFunc(t)
 
-			svc := NewDirhashService()
+			svc := NewDirhash()
 			ctx := context.Background()
 			result, err := svc.CalculateHash(ctx, dirPath)
 
@@ -184,8 +184,8 @@ func TestDirhashService_CalculateHash(t *testing.T) {
 	}
 }
 
-// TestDirhashService_HashAlgorithm tests the HashAlgorithm method
-func TestDirhashService_HashAlgorithm(t *testing.T) {
+// TestDirhash_HashAlgorithm tests the HashAlgorithm method
+func TestDirhash_HashAlgorithm(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
@@ -198,7 +198,7 @@ func TestDirhashService_HashAlgorithm(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := NewDirhashService()
+			svc := NewDirhash()
 			if got := svc.HashAlgorithm(); got != tt.want {
 				t.Errorf("Expected algorithm %q, got %q", tt.want, got)
 			}
@@ -206,19 +206,19 @@ func TestDirhashService_HashAlgorithm(t *testing.T) {
 	}
 }
 
-// TestDirhashService_ImplementsInterface verifies that DirhashService implements HashService
-func TestDirhashService_ImplementsInterface(t *testing.T) {
+// TestDirhash_ImplementsInterface verifies that Dirhash implements HashService
+func TestDirhash_ImplementsInterface(t *testing.T) {
 	tests := []struct {
 		name string
 	}{
 		{
-			name: "DirhashService implements HashService",
+			name: "Dirhash implements HashService",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var _ port.HashService = (*DirhashService)(nil)
+			var _ port.HashService = (*Dirhash)(nil)
 		})
 	}
 }

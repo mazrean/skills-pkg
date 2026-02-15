@@ -1,4 +1,4 @@
-package adapter
+package pkgmanager
 
 import (
 	"context"
@@ -19,20 +19,20 @@ const (
 	defaultDirPerm = 0755
 )
 
-// GitAdapter implements the PackageManager interface for Git repositories.
+// Git implements the PackageManager interface for Git repositories.
 // It handles cloning repositories, checking out specific versions (tags or commits),
 // and retrieving the latest version.
 // Requirements: 3.1, 3.2, 3.5, 3.6, 7.3, 11.2
-type GitAdapter struct{}
+type Git struct{}
 
-// NewGitAdapter creates a new Git adapter instance.
-func NewGitAdapter() *GitAdapter {
-	return &GitAdapter{}
+// NewGit creates a new Git adapter instance.
+func NewGit() *Git {
+	return &Git{}
 }
 
 // SourceType returns "git" to identify this adapter as a Git package manager.
 // Requirements: 11.2
-func (a *GitAdapter) SourceType() string {
+func (a *Git) SourceType() string {
 	return "git"
 }
 
@@ -40,7 +40,7 @@ func (a *GitAdapter) SourceType() string {
 // It clones the repository to a temporary directory and checks out the specified version.
 // If version is "latest" or empty, it uses the default branch's latest commit.
 // Requirements: 3.1, 3.2, 3.5, 3.6, 12.2, 12.3
-func (a *GitAdapter) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
+func (a *Git) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
 	if err := source.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid source configuration: %w", err)
 	}
@@ -80,7 +80,7 @@ func (a *GitAdapter) Download(ctx context.Context, source *port.Source, version 
 // GetLatestVersion retrieves the latest version from a Git repository.
 // It returns the latest tag if available, otherwise the latest commit hash.
 // Requirements: 7.3, 12.2, 12.3
-func (a *GitAdapter) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
+func (a *Git) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
 	if err := source.Validate(); err != nil {
 		return "", fmt.Errorf("invalid source configuration: %w", err)
 	}
@@ -119,7 +119,7 @@ func (a *GitAdapter) GetLatestVersion(ctx context.Context, source *port.Source) 
 
 // createTempDir creates a temporary directory for cloning Git repositories.
 // It uses the SKILLSPKG_TEMP_DIR environment variable if set, otherwise uses os.TempDir().
-func (a *GitAdapter) createTempDir() (string, error) {
+func (a *Git) createTempDir() (string, error) {
 	baseDir := os.Getenv("SKILLSPKG_TEMP_DIR")
 	if baseDir == "" {
 		baseDir = os.TempDir()
@@ -140,7 +140,7 @@ func (a *GitAdapter) createTempDir() (string, error) {
 
 // cloneRepository clones a Git repository from the given URL to the target directory.
 // Requirements: 3.1, 3.5, 12.2, 12.3
-func (a *GitAdapter) cloneRepository(ctx context.Context, url, targetDir string) (*git.Repository, error) {
+func (a *Git) cloneRepository(ctx context.Context, url, targetDir string) (*git.Repository, error) {
 	repo, err := git.PlainCloneContext(ctx, targetDir, false, &git.CloneOptions{
 		URL:      url,
 		Progress: nil, // We could add progress reporting here in the future
@@ -165,7 +165,7 @@ func (a *GitAdapter) cloneRepository(ctx context.Context, url, targetDir string)
 // checkoutVersion checks out the specified version in the repository.
 // If version is "latest" or empty, it uses the HEAD of the default branch.
 // Requirements: 3.1, 3.2, 3.6, 12.2, 12.3
-func (a *GitAdapter) checkoutVersion(repo *git.Repository, version string) (string, error) {
+func (a *Git) checkoutVersion(repo *git.Repository, version string) (string, error) {
 	worktree, err := repo.Worktree()
 	if err != nil {
 		return "", fmt.Errorf("failed to get worktree: %w", err)
@@ -229,7 +229,7 @@ func (a *GitAdapter) checkoutVersion(repo *git.Repository, version string) (stri
 // getLatestTag returns the latest tag in the repository.
 // It returns an empty string if no tags are found.
 // Requirements: 7.3
-func (a *GitAdapter) getLatestTag(repo *git.Repository) (string, error) {
+func (a *Git) getLatestTag(repo *git.Repository) (string, error) {
 	tags, err := repo.Tags()
 	if err != nil {
 		return "", fmt.Errorf("failed to get tags: %w", err)

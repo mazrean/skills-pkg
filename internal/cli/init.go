@@ -7,7 +7,7 @@ import (
 	"reflect"
 
 	"github.com/alecthomas/kong"
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/agent"
 	"github.com/mazrean/skills-pkg/internal/domain"
 	"github.com/mazrean/skills-pkg/internal/port"
 )
@@ -151,23 +151,23 @@ func (c *InitCmd) buildInstallTargets(logger *Logger) ([]string, error) {
 func (c *InitCmd) getAgentProvider(agentName string) (port.AgentProvider, error) {
 	switch agentName {
 	case "claude":
-		return adapter.NewClaudeAgentAdapter(), nil
+		return agent.NewClaude(), nil
 	case "codex":
-		return adapter.NewCodexAgentAdapter(), nil
+		return agent.NewCodex(), nil
 	case "cursor":
-		return adapter.NewCursorAgentAdapter(), nil
+		return agent.NewCursor(), nil
 	case "copilot":
-		return adapter.NewCopilotAgentAdapter(), nil
+		return agent.NewCopilot(), nil
 	case "goose":
-		return adapter.NewGooseAgentAdapter(), nil
+		return agent.NewGoose(), nil
 	case "opencode":
-		return adapter.NewOpenCodeAgentAdapter(), nil
+		return agent.NewOpencode(), nil
 	case "gemini":
-		return adapter.NewGeminiAgentAdapter(), nil
+		return agent.NewGemini(), nil
 	case "amp":
-		return adapter.NewAmpAgentAdapter(), nil
+		return agent.NewAmp(), nil
 	case "factory":
-		return adapter.NewFactoryAgentAdapter(), nil
+		return agent.NewFactory(), nil
 	default:
 		return nil, fmt.Errorf("unsupported agent: %s", agentName)
 	}

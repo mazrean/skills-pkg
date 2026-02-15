@@ -1,14 +1,14 @@
-package adapter_test
+package agent_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/agent"
 )
 
-func TestFactoryAgentAdapter_ResolveAgentDir(t *testing.T) {
+func TestFactory_ResolveAgentDir(t *testing.T) {
 	tests := []struct {
 		name            string
 		agentName       string
@@ -39,7 +39,7 @@ func TestFactoryAgentAdapter_ResolveAgentDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewFactoryAgentAdapter()
+			provider := agent.NewFactory()
 
 			dir, err := provider.ResolveAgentDir(tt.agentName)
 			if (err != nil) != tt.wantErr {
@@ -76,7 +76,7 @@ func TestFactoryAgentAdapter_ResolveAgentDir(t *testing.T) {
 	}
 }
 
-func TestFactoryAgentAdapter_AgentName(t *testing.T) {
+func TestFactory_AgentName(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
@@ -89,7 +89,7 @@ func TestFactoryAgentAdapter_AgentName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewFactoryAgentAdapter()
+			provider := agent.NewFactory()
 			if got := provider.AgentName(); got != tt.want {
 				t.Errorf("AgentName() = %q, want %q", got, tt.want)
 			}

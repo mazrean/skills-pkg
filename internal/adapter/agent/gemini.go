@@ -1,4 +1,4 @@
-package adapter
+package agent
 
 import (
 	"fmt"
@@ -8,19 +8,19 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-// GeminiAgentAdapter provides directory resolution for the Gemini CLI agent.
+// Gemini provides directory resolution for the Gemini CLI agent.
 // It returns the default installation directory for Gemini agent when --agent flag is specified.
-type GeminiAgentAdapter struct{}
+type Gemini struct{}
 
-// NewGeminiAgentAdapter creates a new Gemini CLI agent adapter instance.
-func NewGeminiAgentAdapter() port.AgentProvider {
-	return &GeminiAgentAdapter{}
+// NewGemini creates a new Gemini CLI agent adapter instance.
+func NewGemini() port.AgentProvider {
+	return &Gemini{}
 }
 
 // ResolveAgentDir returns the default install directory for the agent.
 // For Gemini CLI agent, it returns ~/.gemini/skills.
 // Returns an error if the agent name is not "gemini" or if the home directory cannot be determined.
-func (a *GeminiAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
+func (a *Gemini) ResolveAgentDir(agentName string) (string, error) {
 	if agentName == "" {
 		return "", fmt.Errorf("agent name cannot be empty")
 	}
@@ -38,6 +38,6 @@ func (a *GeminiAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
 }
 
 // AgentName returns the name of the agent this adapter supports.
-func (a *GeminiAgentAdapter) AgentName() string {
+func (a *Gemini) AgentName() string {
 	return "gemini"
 }

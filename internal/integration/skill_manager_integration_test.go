@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/pkgmanager"
+	"github.com/mazrean/skills-pkg/internal/adapter/service"
 	"github.com/mazrean/skills-pkg/internal/domain"
 	"github.com/mazrean/skills-pkg/internal/port"
 )
@@ -71,8 +72,8 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 					t.Fatalf("AddSkill failed: %v", err)
 				}
 
-				hashService := adapter.NewDirhashService()
-				gitAdapter := adapter.NewGitAdapter()
+				hashService := service.NewDirhash()
+				gitAdapter := pkgmanager.NewGit()
 				packageManagers := []port.PackageManager{gitAdapter}
 				skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
 
@@ -146,8 +147,8 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 					t.Fatalf("Initialize failed: %v", err)
 				}
 
-				hashService := adapter.NewDirhashService()
-				gitAdapter := adapter.NewGitAdapter()
+				hashService := service.NewDirhash()
+				gitAdapter := pkgmanager.NewGit()
 				packageManagers := []port.PackageManager{gitAdapter}
 				skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
 

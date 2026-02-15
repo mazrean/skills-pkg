@@ -1,4 +1,4 @@
-package adapter
+package pkgmanager
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-func TestGoModAdapter_SourceType(t *testing.T) {
+func TestGoMod_SourceType(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
@@ -23,7 +23,7 @@ func TestGoModAdapter_SourceType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := NewGoModAdapter()
+			adapter := NewGoMod()
 			if got := adapter.SourceType(); got != tt.want {
 				t.Errorf("SourceType() = %v, want %v", got, tt.want)
 			}
@@ -31,8 +31,8 @@ func TestGoModAdapter_SourceType(t *testing.T) {
 	}
 }
 
-func TestGoModAdapter_Download_InvalidSource(t *testing.T) {
-	adapter := NewGoModAdapter()
+func TestGoMod_Download_InvalidSource(t *testing.T) {
+	adapter := NewGoMod()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -80,7 +80,7 @@ func TestGoModAdapter_Download_InvalidSource(t *testing.T) {
 	}
 }
 
-func TestGoModAdapter_Download_ModuleErrors(t *testing.T) {
+func TestGoMod_Download_ModuleErrors(t *testing.T) {
 	tests := []struct {
 		checkVersionType func(t *testing.T, version string)
 		name             string
@@ -131,7 +131,7 @@ func TestGoModAdapter_Download_ModuleErrors(t *testing.T) {
 				t.Skip("skipping integration test in short mode")
 			}
 
-			adapter := NewGoModAdapter()
+			adapter := NewGoMod()
 			ctx := context.Background()
 
 			source := &port.Source{
@@ -189,8 +189,8 @@ func TestGoModAdapter_Download_ModuleErrors(t *testing.T) {
 	}
 }
 
-func TestGoModAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
-	adapter := NewGoModAdapter()
+func TestGoMod_GetLatestVersion_InvalidSource(t *testing.T) {
+	adapter := NewGoMod()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -234,7 +234,7 @@ func TestGoModAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
 	}
 }
 
-func TestGoModAdapter_GetLatestVersion_ModuleErrors(t *testing.T) {
+func TestGoMod_GetLatestVersion_ModuleErrors(t *testing.T) {
 	tests := []struct {
 		checkVersion    func(t *testing.T, version string)
 		name            string
@@ -272,7 +272,7 @@ func TestGoModAdapter_GetLatestVersion_ModuleErrors(t *testing.T) {
 				t.Skip("skipping integration test in short mode")
 			}
 
-			adapter := NewGoModAdapter()
+			adapter := NewGoMod()
 			ctx := context.Background()
 
 			source := &port.Source{

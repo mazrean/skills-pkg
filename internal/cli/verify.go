@@ -6,7 +6,7 @@ import (
 	"reflect"
 
 	"github.com/alecthomas/kong"
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/service"
 	"github.com/mazrean/skills-pkg/internal/domain"
 )
 
@@ -50,7 +50,7 @@ func (c *VerifyCmd) runWithLogger(configPath string, logger *Logger) error {
 	configManager := domain.NewConfigManager(configPath)
 
 	// Create HashService
-	hashService := adapter.NewDirhashService()
+	hashService := service.NewDirhash()
 
 	// Create HashVerifier
 	hashVerifier := domain.NewHashVerifier(configManager, hashService)

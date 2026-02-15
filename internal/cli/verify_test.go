@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/service"
 	"github.com/mazrean/skills-pkg/internal/domain"
 )
 
@@ -54,7 +54,7 @@ func TestVerifyCmd_Run(t *testing.T) {
 				}
 
 				// Calculate actual hashes using the real hash service
-				hashService := adapter.NewDirhashService()
+				hashService := service.NewDirhash()
 				hash1, _ := hashService.CalculateHash(context.Background(), skillDir1)
 				hash2, _ := hashService.CalculateHash(context.Background(), skillDir2)
 
