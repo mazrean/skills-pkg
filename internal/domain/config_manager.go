@@ -220,3 +220,17 @@ func (m *ConfigManager) ListSkills(ctx context.Context) ([]*Skill, error) {
 	// Return the skills list
 	return config.Skills, nil
 }
+
+// GetInstallTargets returns the list of installation target directories from the configuration.
+// This is the single source of truth for where skills should be installed.
+// Requirements: 1.2, 2.5, 10.1
+func (m *ConfigManager) GetInstallTargets(ctx context.Context) ([]string, error) {
+	// Load the current config
+	config, err := m.Load(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Return the install targets list
+	return config.InstallTargets, nil
+}

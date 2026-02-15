@@ -826,6 +826,101 @@ func TestConfigManager_RemoveSkill(t *testing.T) {
 	}
 }
 
+// TestConfigManager_GetInstallTargets tests the GetInstallTargets method of ConfigManager.
+// Requirements: 1.2, 2.5, 10.1
+func TestConfigManager_GetInstallTargets(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupConfig *domain.Config
+		wantErr     error
+		validate    func(t *testing.T, targets []string)
+	}{
+		{
+			name: "successfully gets install targets",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills", "~/.codex/skills"},
+				Skills:         []*domain.Skill{},
+			},
+			wantErr: nil,
+			validate: func(t *testing.T, targets []string) {
+				if len(targets) != 2 {
+					t.Fatalf("expected 2 install targets, got %d", len(targets))
+				}
+				if targets[0] != "~/.claude/skills" {
+					t.Errorf("expected first target '~/.claude/skills', got '%s'", targets[0])
+				}
+				if targets[1] != "~/.codex/skills" {
+					t.Errorf("expected second target '~/.codex/skills', got '%s'", targets[1])
+				}
+			},
+		},
+		{
+			name: "returns empty list when no targets configured",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{},
+				Skills:         []*domain.Skill{},
+			},
+			wantErr: nil,
+			validate: func(t *testing.T, targets []string) {
+				if len(targets) != 0 {
+					t.Errorf("expected 0 install targets, got %d", len(targets))
+				}
+			},
+		},
+		{
+			name: "gets multiple install targets",
+			setupConfig: &domain.Config{
+				InstallTargets: []string{"~/.claude/skills", "~/.codex/skills", "/opt/skills"},
+				Skills:         []*domain.Skill{},
+			},
+			wantErr: nil,
+			validate: func(t *testing.T, targets []string) {
+				if len(targets) != 3 {
+					t.Fatalf("expected 3 install targets, got %d", len(targets))
+				}
+				if targets[2] != "/opt/skills" {
+					t.Errorf("expected third target '/opt/skills', got '%s'", targets[2])
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary directory for testing
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, ".skillspkg.toml")
+
+			// Create ConfigManager
+			manager := domain.NewConfigManager(configPath)
+
+			// Setup: Save initial config
+			ctx := context.Background()
+			if err := manager.Save(ctx, tt.setupConfig); err != nil {
+				t.Fatalf("failed to setup test: %v", err)
+			}
+
+			// Execute GetInstallTargets
+			targets, err := manager.GetInstallTargets(ctx)
+
+			// Verify error
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Errorf("ConfigManager.GetInstallTargets() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			} else if err != nil {
+				t.Errorf("ConfigManager.GetInstallTargets() unexpected error = %v", err)
+				return
+			}
+
+			// Validate the targets list
+			if tt.validate != nil {
+				tt.validate(t, targets)
+			}
+		})
+	}
+}
+
 // TestConfigManager_ListSkills tests the ListSkills method of ConfigManager.
 // Requirements: 8.1, 8.2
 func TestConfigManager_ListSkills(t *testing.T) {
