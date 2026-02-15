@@ -19,6 +19,11 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
+const (
+	// pipPathSplitLimit is the limit for splitting paths to separate the first directory from the rest
+	pipPathSplitLimit = 2
+)
+
 // PipAdapter implements the PackageManager interface for PyPI (pip).
 // It handles downloading packages from PyPI, extracting distributions,
 // and retrieving the latest version.
@@ -283,7 +288,7 @@ func (a *PipAdapter) extractTarGz(r io.Reader, targetDir string) error {
 
 		// Determine prefix directory from the first entry
 		if prefixDir == "" {
-			parts := strings.SplitN(header.Name, "/", maxPathSegments)
+			parts := strings.SplitN(header.Name, "/", pipPathSplitLimit)
 			if len(parts) > 0 {
 				prefixDir = parts[0] + "/"
 			}

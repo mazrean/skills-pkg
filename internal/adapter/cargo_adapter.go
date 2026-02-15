@@ -20,9 +20,8 @@ import (
 )
 
 const (
-	// maxPathSegments is the maximum number of segments to split a path into
-	// when extracting the prefix directory (prefix/rest format)
-	maxPathSegments = 2
+	// cargoPathSplitLimit is the limit for splitting paths to separate the first directory from the rest
+	cargoPathSplitLimit = 2
 )
 
 // CargoAdapter implements the PackageManager interface for crates.io (cargo).
@@ -258,7 +257,7 @@ func (a *CargoAdapter) extractCrate(r io.Reader, targetDir string) error {
 
 		// Determine prefix directory from the first entry
 		if prefixDir == "" {
-			parts := strings.SplitN(header.Name, "/", maxPathSegments)
+			parts := strings.SplitN(header.Name, "/", cargoPathSplitLimit)
 			if len(parts) > 0 {
 				prefixDir = parts[0] + "/"
 			}
