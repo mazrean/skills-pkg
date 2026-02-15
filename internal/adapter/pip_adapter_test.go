@@ -20,8 +20,8 @@ func TestPipAdapter_Download_InvalidSource(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
 		source  *port.Source
+		name    string
 		wantErr bool
 	}{
 		{
@@ -65,8 +65,8 @@ func TestPipAdapter_GetLatestVersion_InvalidSource(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
 		source  *port.Source
+		name    string
 		wantErr bool
 	}{
 		{
