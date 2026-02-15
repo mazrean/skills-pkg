@@ -513,3 +513,282 @@ func TestInstall_HashMismatchWarning(t *testing.T) {
 func TestInstall_FileSystemError(t *testing.T) {
 	t.Skip("Implement after full Install implementation")
 }
+
+// TestUpdate_SingleSkill tests updating a single skill.
+// Requirements: 7.1, 7.2, 7.5, 7.6
+func TestUpdate_SingleSkill(t *testing.T) {
+	// Create temporary directory for testing
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+
+	// Create config manager
+	configManager := NewConfigManager(configPath)
+
+	// Initialize configuration
+	ctx := context.Background()
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// Add a skill
+	skill := &Skill{
+		Name:      "test-skill",
+		Source:    "npm",
+		URL:       "test-package",
+		Version:   "1.0.0",
+		HashAlgo:  "sha256",
+		HashValue: "oldHash123",
+	}
+	if err := configManager.AddSkill(ctx, skill); err != nil {
+		t.Fatalf("Failed to add skill: %v", err)
+	}
+
+	// Create mock package manager that returns a new version
+	mockPM := &mockPackageManagerWithUpdate{
+		sourceType:    "npm",
+		latestVersion: "2.0.0",
+		downloadPath:  tempDir + "/download",
+	}
+
+	// Create skill directory in download path
+	if err := os.MkdirAll(mockPM.downloadPath, 0o755); err != nil {
+		t.Fatalf("Failed to create download directory: %v", err)
+	}
+
+	// Create skill manager
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{mockPM})
+
+	// Update the skill
+	result, err := skillManager.Update(ctx, "test-skill")
+	if err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	// Verify result
+	if result == nil {
+		t.Fatal("Update returned nil result")
+	}
+	if result.SkillName != "test-skill" {
+		t.Errorf("Expected skill name 'test-skill', got '%s'", result.SkillName)
+	}
+	if result.OldVersion != "1.0.0" {
+		t.Errorf("Expected old version '1.0.0', got '%s'", result.OldVersion)
+	}
+	if result.NewVersion != "2.0.0" {
+		t.Errorf("Expected new version '2.0.0', got '%s'", result.NewVersion)
+	}
+
+	// Verify configuration was updated
+	config, err := configManager.Load(ctx)
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+	updatedSkill := config.FindSkillByName("test-skill")
+	if updatedSkill == nil {
+		t.Fatal("Skill not found after update")
+	}
+	if updatedSkill.Version != "2.0.0" {
+		t.Errorf("Expected updated version '2.0.0', got '%s'", updatedSkill.Version)
+	}
+	if updatedSkill.HashValue == "oldHash123" {
+		t.Error("Hash value should have been updated")
+	}
+}
+
+// TestUpdate_AllSkills tests updating all skills.
+// Requirements: 7.1, 7.2
+func TestUpdate_AllSkills(t *testing.T) {
+	// Create temporary directory for testing
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+
+	// Create config manager
+	configManager := NewConfigManager(configPath)
+
+	// Initialize configuration
+	ctx := context.Background()
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// Add skills
+	skills := []*Skill{
+		{
+			Name:      "skill1",
+			Source:    "npm",
+			URL:       "package1",
+			Version:   "1.0.0",
+			HashAlgo:  "sha256",
+			HashValue: "hash1",
+		},
+		{
+			Name:      "skill2",
+			Source:    "git",
+			URL:       "https://github.com/example/skill2",
+			Version:   "v1.0.0",
+			HashAlgo:  "sha256",
+			HashValue: "hash2",
+		},
+	}
+	for _, skill := range skills {
+		if err := configManager.AddSkill(ctx, skill); err != nil {
+			t.Fatalf("Failed to add skill: %v", err)
+		}
+	}
+
+	// Create mock package managers
+	npmPM := &mockPackageManagerWithUpdate{
+		sourceType:    "npm",
+		latestVersion: "2.0.0",
+		downloadPath:  tempDir + "/npm-download",
+	}
+	gitPM := &mockPackageManagerWithUpdate{
+		sourceType:    "git",
+		latestVersion: "v2.0.0",
+		downloadPath:  tempDir + "/git-download",
+	}
+
+	// Create download directories
+	for _, pm := range []*mockPackageManagerWithUpdate{npmPM, gitPM} {
+		if err := os.MkdirAll(pm.downloadPath, 0o755); err != nil {
+			t.Fatalf("Failed to create download directory: %v", err)
+		}
+	}
+
+	// Create skill manager
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{npmPM, gitPM})
+
+	// Update all skills (empty skillName)
+	result, err := skillManager.Update(ctx, "")
+	if err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+
+	// For now, just verify no error when updating all skills
+	// Full implementation will return results for all skills
+	_ = result
+}
+
+// TestUpdate_SkillNotFound tests error handling when skill is not found.
+// Requirements: 12.2, 12.3
+func TestUpdate_SkillNotFound(t *testing.T) {
+	// Create temporary directory for testing
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+
+	// Create config manager
+	configManager := NewConfigManager(configPath)
+
+	// Initialize configuration
+	ctx := context.Background()
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// Create skill manager
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
+
+	// Try to update non-existent skill
+	_, err := skillManager.Update(ctx, "non-existent-skill")
+	if err == nil {
+		t.Fatal("Expected error for non-existent skill, got nil")
+	}
+
+	if !errors.Is(err, ErrSkillNotFound) {
+		t.Errorf("Expected ErrSkillNotFound, got %v", err)
+	}
+}
+
+// TestUpdate_NetworkError tests handling of network errors.
+// Requirements: 12.2, 12.3
+func TestUpdate_NetworkError(t *testing.T) {
+	// Create temporary directory for testing
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+
+	// Create config manager
+	configManager := NewConfigManager(configPath)
+
+	// Initialize configuration
+	ctx := context.Background()
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// Add a skill
+	skill := &Skill{
+		Name:      "test-skill",
+		Source:    "npm",
+		URL:       "test-package",
+		Version:   "1.0.0",
+		HashAlgo:  "sha256",
+		HashValue: "oldHash123",
+	}
+	if err := configManager.AddSkill(ctx, skill); err != nil {
+		t.Fatalf("Failed to add skill: %v", err)
+	}
+
+	// Create mock package manager that returns a network error
+	mockPM := &mockPackageManagerWithError{
+		sourceType: "npm",
+		err:        ErrNetworkFailure,
+	}
+
+	// Create skill manager
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{mockPM})
+
+	// Try to update the skill
+	_, err := skillManager.Update(ctx, "test-skill")
+	if err == nil {
+		t.Fatal("Expected error for network failure, got nil")
+	}
+
+	// Should be a network error
+	if !IsNetworkError(err) {
+		t.Errorf("Expected network error, got %v", err)
+	}
+}
+
+// Mock package manager with update support
+type mockPackageManagerWithUpdate struct {
+	sourceType    string
+	latestVersion string
+	downloadPath  string
+}
+
+func (m *mockPackageManagerWithUpdate) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
+	return &port.DownloadResult{
+		Path:    m.downloadPath,
+		Version: version,
+	}, nil
+}
+
+func (m *mockPackageManagerWithUpdate) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
+	return m.latestVersion, nil
+}
+
+func (m *mockPackageManagerWithUpdate) SourceType() string {
+	return m.sourceType
+}
+
+// Mock package manager with error
+type mockPackageManagerWithError struct {
+	sourceType string
+	err        error
+}
+
+func (m *mockPackageManagerWithError) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
+	return nil, m.err
+}
+
+func (m *mockPackageManagerWithError) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
+	return "", m.err
+}
+
+func (m *mockPackageManagerWithError) SourceType() string {
+	return m.sourceType
+}
