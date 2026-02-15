@@ -11,12 +11,12 @@ import (
 var CLI struct {
 	List      cli.ListCmd      `cmd:"" help:"List installed skills"`
 	Verify    cli.VerifyCmd    `cmd:"" help:"Verify skill integrity with hash"`
-	Add       cli.AddCmd       `cmd:"" help:"Add a skill to configuration"`
-	Uninstall cli.UninstallCmd `cmd:"" help:"Uninstall skills"`
+	Add       cli.AddCmd       `cmd:"" help:"Add a skill to configuration and install it"`
+	Uninstall cli.UninstallCmd `cmd:"" help:"Remove a skill from configuration and install targets"`
 	Install   cli.InstallCmd   `cmd:"" help:"Install skills from configuration"`
 	Update    cli.UpdateCmd    `cmd:"" help:"Update skills to latest versions"`
-	Init      cli.InitCmd      `cmd:"" help:"Initialize project with .skillspkg.toml"`
-	Verbose   bool             `help:"Enable verbose logging" short:"v" env:"SKILLSPKG_VERBOSE"`
+	Init      cli.InitCmd      `cmd:"" help:"Initialize project with .skillspkg.toml configuration file"`
+	Verbose   bool             `help:"Enable verbose logging" short:"v" env:"SKILLSPKG_VERBOSE" default:"false"`
 }
 
 // Version information (will be injected by GoReleaser via ldflags)

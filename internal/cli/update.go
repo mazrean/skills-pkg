@@ -14,7 +14,7 @@ import (
 
 // UpdateCmd represents the update command
 type UpdateCmd struct {
-	Skills []string `arg:"" optional:"" help:"Skill names to update (empty for all)"`
+	Skills []string `arg:"" optional:"" help:"Skill names to update (if not specified, updates all skills to their latest versions)"`
 }
 
 // Run executes the update command

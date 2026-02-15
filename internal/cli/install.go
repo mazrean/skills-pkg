@@ -14,7 +14,7 @@ import (
 
 // InstallCmd represents the install command
 type InstallCmd struct {
-	Skills []string `arg:"" optional:"" help:"Skill names to install (empty for all)"`
+	Skills []string `arg:"" optional:"" help:"Skill names to install (if not specified, installs all skills from configuration)"`
 }
 
 // Run executes the install command
