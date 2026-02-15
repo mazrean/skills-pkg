@@ -1,3 +1,5 @@
+// Package agent provides implementations of AgentProvider interface for various coding agents.
+// It supports multiple coding agents including Claude, Codex, Cursor, Copilot, Goose, Opencode, Gemini, Amp, and Factory.
 package agent
 
 import (

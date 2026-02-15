@@ -1,3 +1,5 @@
+// Package service provides implementations of various service interfaces.
+// It includes hash calculation services for skill verification.
 package service
 
 import (
