@@ -1,4 +1,4 @@
-package adapter
+package agent
 
 import (
 	"fmt"
@@ -8,19 +8,19 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-// CopilotAgentAdapter provides directory resolution for the GitHub Copilot agent.
+// Copilot provides directory resolution for the GitHub Copilot agent.
 // It returns the default installation directory for Copilot agent when --agent flag is specified.
-type CopilotAgentAdapter struct{}
+type Copilot struct{}
 
-// NewCopilotAgentAdapter creates a new GitHub Copilot agent adapter instance.
-func NewCopilotAgentAdapter() port.AgentProvider {
-	return &CopilotAgentAdapter{}
+// NewCopilot creates a new GitHub Copilot agent adapter instance.
+func NewCopilot() port.AgentProvider {
+	return &Copilot{}
 }
 
 // ResolveAgentDir returns the default install directory for the agent.
 // For GitHub Copilot agent, it returns ~/.github/skills.
 // Returns an error if the agent name is not "copilot" or if the home directory cannot be determined.
-func (a *CopilotAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
+func (a *Copilot) ResolveAgentDir(agentName string) (string, error) {
 	if agentName == "" {
 		return "", fmt.Errorf("agent name cannot be empty")
 	}
@@ -38,6 +38,6 @@ func (a *CopilotAgentAdapter) ResolveAgentDir(agentName string) (string, error) 
 }
 
 // AgentName returns the name of the agent this adapter supports.
-func (a *CopilotAgentAdapter) AgentName() string {
+func (a *Copilot) AgentName() string {
 	return "copilot"
 }

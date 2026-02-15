@@ -1,14 +1,14 @@
-package adapter_test
+package agent_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/agent"
 )
 
-func TestGeminiAgentAdapter_ResolveAgentDir(t *testing.T) {
+func TestAmp_ResolveAgentDir(t *testing.T) {
 	tests := []struct {
 		name            string
 		agentName       string
@@ -18,11 +18,11 @@ func TestGeminiAgentAdapter_ResolveAgentDir(t *testing.T) {
 		checkHomePrefix bool
 	}{
 		{
-			name:            "gemini agent",
-			agentName:       "gemini",
+			name:            "amp agent",
+			agentName:       "amp",
 			wantErr:         false,
 			checkAbsolute:   true,
-			checkSuffix:     filepath.Join(".gemini", "skills"),
+			checkSuffix:     filepath.Join(".config", "agents", "skills"),
 			checkHomePrefix: true,
 		},
 		{
@@ -39,7 +39,7 @@ func TestGeminiAgentAdapter_ResolveAgentDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewGeminiAgentAdapter()
+			provider := agent.NewAmp()
 
 			dir, err := provider.ResolveAgentDir(tt.agentName)
 			if (err != nil) != tt.wantErr {
@@ -67,7 +67,7 @@ func TestGeminiAgentAdapter_ResolveAgentDir(t *testing.T) {
 				if err != nil {
 					t.Fatalf("os.UserHomeDir() error = %v", err)
 				}
-				expected := filepath.Join(home, ".gemini", "skills")
+				expected := filepath.Join(home, ".config", "agents", "skills")
 				if dir != expected {
 					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
 				}
@@ -76,20 +76,20 @@ func TestGeminiAgentAdapter_ResolveAgentDir(t *testing.T) {
 	}
 }
 
-func TestGeminiAgentAdapter_AgentName(t *testing.T) {
+func TestAmp_AgentName(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
 	}{
 		{
-			name: "should return gemini",
-			want: "gemini",
+			name: "should return amp",
+			want: "amp",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewGeminiAgentAdapter()
+			provider := agent.NewAmp()
 			if got := provider.AgentName(); got != tt.want {
 				t.Errorf("AgentName() = %q, want %q", got, tt.want)
 			}

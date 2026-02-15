@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/service"
 	"github.com/mazrean/skills-pkg/internal/domain"
 )
 
@@ -17,13 +17,13 @@ func TestHashVerificationIntegration(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		testFunc  func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string)
-		setupFunc func(t *testing.T) (ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string)
+		testFunc  func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *service.Dirhash, skillDir string)
+		setupFunc func(t *testing.T) (ctx context.Context, configManager *domain.ConfigManager, hashService *service.Dirhash, skillDir string)
 		name      string
 	}{
 		{
 			name: "Calculate_And_Verify_Hash_Integration",
-			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *adapter.DirhashService, string) {
+			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *service.Dirhash, string) {
 				tempDir := t.TempDir()
 				configPath := filepath.Join(tempDir, ".skillspkg.toml")
 				installDir := filepath.Join(tempDir, "skills")
@@ -59,10 +59,10 @@ func TestHashVerificationIntegration(t *testing.T) {
 					t.Fatalf("Initialize failed: %v", err)
 				}
 
-				hashService := adapter.NewDirhashService()
+				hashService := service.NewDirhash()
 				return ctx, configManager, hashService, skillDir
 			},
-			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string) {
+			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *service.Dirhash, skillDir string) {
 				skill := &domain.Skill{
 					Name:      "test-skill",
 					Source:    "git",
@@ -109,7 +109,7 @@ func TestHashVerificationIntegration(t *testing.T) {
 		},
 		{
 			name: "Detect_Tampering_Integration",
-			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *adapter.DirhashService, string) {
+			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *service.Dirhash, string) {
 				tempDir := t.TempDir()
 				configPath := filepath.Join(tempDir, ".skillspkg.toml")
 				installDir := filepath.Join(tempDir, "skills")
@@ -128,7 +128,7 @@ func TestHashVerificationIntegration(t *testing.T) {
 				}
 
 				ctx := context.Background()
-				hashService := adapter.NewDirhashService()
+				hashService := service.NewDirhash()
 				originalHash, err := hashService.CalculateHash(ctx, skillDir)
 				if err != nil {
 					t.Fatalf("CalculateHash failed: %v", err)
@@ -156,7 +156,7 @@ func TestHashVerificationIntegration(t *testing.T) {
 
 				return ctx, configManager, hashService, skillDir
 			},
-			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string) {
+			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *service.Dirhash, skillDir string) {
 				testFile := filepath.Join(skillDir, "skill.go")
 				tamperedContent := "package skill\n\n// MALICIOUS CODE\nfunc Execute() {}"
 				err := os.WriteFile(testFile, []byte(tamperedContent), 0o644)
@@ -181,7 +181,7 @@ func TestHashVerificationIntegration(t *testing.T) {
 		},
 		{
 			name: "Verify_All_Skills_Integration",
-			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *adapter.DirhashService, string) {
+			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *service.Dirhash, string) {
 				tempDir := t.TempDir()
 				configPath := filepath.Join(tempDir, ".skillspkg.toml")
 				installDir := filepath.Join(tempDir, "skills")
@@ -193,7 +193,7 @@ func TestHashVerificationIntegration(t *testing.T) {
 					t.Fatalf("Initialize failed: %v", err)
 				}
 
-				hashService := adapter.NewDirhashService()
+				hashService := service.NewDirhash()
 				numSkills := 3
 
 				for i := range numSkills {
@@ -232,7 +232,7 @@ func TestHashVerificationIntegration(t *testing.T) {
 
 				return ctx, configManager, hashService, installDir
 			},
-			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, installDir string) {
+			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *service.Dirhash, installDir string) {
 				const numSkills = 3
 
 				hashVerifier := domain.NewHashVerifier(configManager, hashService)
@@ -283,7 +283,7 @@ func TestHashVerificationIntegration(t *testing.T) {
 		},
 		{
 			name: "Hash_Algorithm_Consistency",
-			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *adapter.DirhashService, string) {
+			setupFunc: func(t *testing.T) (context.Context, *domain.ConfigManager, *service.Dirhash, string) {
 				tempDir := t.TempDir()
 				skillDir := filepath.Join(tempDir, "test-skill")
 
@@ -300,10 +300,10 @@ func TestHashVerificationIntegration(t *testing.T) {
 				}
 
 				ctx := context.Background()
-				hashService := adapter.NewDirhashService()
+				hashService := service.NewDirhash()
 				return ctx, nil, hashService, skillDir
 			},
-			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *adapter.DirhashService, skillDir string) {
+			testFunc: func(t *testing.T, ctx context.Context, configManager *domain.ConfigManager, hashService *service.Dirhash, skillDir string) {
 				hash1, err := hashService.CalculateHash(ctx, skillDir)
 				if err != nil {
 					t.Fatalf("First CalculateHash failed: %v", err)

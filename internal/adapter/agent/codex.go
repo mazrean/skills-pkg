@@ -1,4 +1,4 @@
-package adapter
+package agent
 
 import (
 	"fmt"
@@ -8,19 +8,19 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-// CodexAgentAdapter provides directory resolution for the Codex CLI agent.
+// Codex provides directory resolution for the Codex CLI agent.
 // It returns the default installation directory for Codex agent when --agent flag is specified.
-type CodexAgentAdapter struct{}
+type Codex struct{}
 
-// NewCodexAgentAdapter creates a new Codex agent adapter instance.
-func NewCodexAgentAdapter() port.AgentProvider {
-	return &CodexAgentAdapter{}
+// NewCodex creates a new Codex agent adapter instance.
+func NewCodex() port.AgentProvider {
+	return &Codex{}
 }
 
 // ResolveAgentDir returns the default install directory for the agent.
 // For Codex agent, it returns ~/.codex/skills.
 // Returns an error if the agent name is not "codex" or if the home directory cannot be determined.
-func (a *CodexAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
+func (a *Codex) ResolveAgentDir(agentName string) (string, error) {
 	if agentName == "" {
 		return "", fmt.Errorf("agent name cannot be empty")
 	}
@@ -38,6 +38,6 @@ func (a *CodexAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
 }
 
 // AgentName returns the name of the agent this adapter supports.
-func (a *CodexAgentAdapter) AgentName() string {
+func (a *Codex) AgentName() string {
 	return "codex"
 }

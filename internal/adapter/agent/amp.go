@@ -1,4 +1,6 @@
-package adapter
+// Package agent provides implementations of AgentProvider interface for various coding agents.
+// It supports multiple coding agents including Claude, Codex, Cursor, Copilot, Goose, Opencode, Gemini, Amp, and Factory.
+package agent
 
 import (
 	"fmt"
@@ -8,19 +10,19 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-// AmpAgentAdapter provides directory resolution for the AMP agent.
+// Amp provides directory resolution for the AMP agent.
 // It returns the default installation directory for AMP agent when --agent flag is specified.
-type AmpAgentAdapter struct{}
+type Amp struct{}
 
-// NewAmpAgentAdapter creates a new AMP agent adapter instance.
-func NewAmpAgentAdapter() port.AgentProvider {
-	return &AmpAgentAdapter{}
+// NewAmp creates a new AMP agent adapter instance.
+func NewAmp() port.AgentProvider {
+	return &Amp{}
 }
 
 // ResolveAgentDir returns the default install directory for the agent.
 // For AMP agent, it returns ~/.config/agents/skills.
 // Returns an error if the agent name is not "amp" or if the home directory cannot be determined.
-func (a *AmpAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
+func (a *Amp) ResolveAgentDir(agentName string) (string, error) {
 	if agentName == "" {
 		return "", fmt.Errorf("agent name cannot be empty")
 	}
@@ -38,6 +40,6 @@ func (a *AmpAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
 }
 
 // AgentName returns the name of the agent this adapter supports.
-func (a *AmpAgentAdapter) AgentName() string {
+func (a *Amp) AgentName() string {
 	return "amp"
 }

@@ -1,14 +1,14 @@
-package adapter_test
+package agent_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/agent"
 )
 
-func TestAmpAgentAdapter_ResolveAgentDir(t *testing.T) {
+func TestCursor_ResolveAgentDir(t *testing.T) {
 	tests := []struct {
 		name            string
 		agentName       string
@@ -18,11 +18,11 @@ func TestAmpAgentAdapter_ResolveAgentDir(t *testing.T) {
 		checkHomePrefix bool
 	}{
 		{
-			name:            "amp agent",
-			agentName:       "amp",
+			name:            "cursor agent",
+			agentName:       "cursor",
 			wantErr:         false,
 			checkAbsolute:   true,
-			checkSuffix:     filepath.Join(".config", "agents", "skills"),
+			checkSuffix:     filepath.Join(".cursor", "rules"),
 			checkHomePrefix: true,
 		},
 		{
@@ -39,7 +39,7 @@ func TestAmpAgentAdapter_ResolveAgentDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewAmpAgentAdapter()
+			provider := agent.NewCursor()
 
 			dir, err := provider.ResolveAgentDir(tt.agentName)
 			if (err != nil) != tt.wantErr {
@@ -67,7 +67,7 @@ func TestAmpAgentAdapter_ResolveAgentDir(t *testing.T) {
 				if err != nil {
 					t.Fatalf("os.UserHomeDir() error = %v", err)
 				}
-				expected := filepath.Join(home, ".config", "agents", "skills")
+				expected := filepath.Join(home, ".cursor", "rules")
 				if dir != expected {
 					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
 				}
@@ -76,20 +76,20 @@ func TestAmpAgentAdapter_ResolveAgentDir(t *testing.T) {
 	}
 }
 
-func TestAmpAgentAdapter_AgentName(t *testing.T) {
+func TestCursor_AgentName(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
 	}{
 		{
-			name: "should return amp",
-			want: "amp",
+			name: "should return cursor",
+			want: "cursor",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewAmpAgentAdapter()
+			provider := agent.NewCursor()
 			if got := provider.AgentName(); got != tt.want {
 				t.Errorf("AgentName() = %q, want %q", got, tt.want)
 			}

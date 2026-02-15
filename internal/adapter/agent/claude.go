@@ -1,4 +1,4 @@
-package adapter
+package agent
 
 import (
 	"fmt"
@@ -8,21 +8,21 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-// ClaudeAgentAdapter provides directory resolution for the Claude Code agent.
+// Claude provides directory resolution for the Claude Code agent.
 // It returns the default installation directory for Claude agent when --agent flag is specified.
 // Requirements: 10.3, 10.4
-type ClaudeAgentAdapter struct{}
+type Claude struct{}
 
-// NewClaudeAgentAdapter creates a new Claude agent adapter instance.
-func NewClaudeAgentAdapter() port.AgentProvider {
-	return &ClaudeAgentAdapter{}
+// NewClaude creates a new Claude agent adapter instance.
+func NewClaude() port.AgentProvider {
+	return &Claude{}
 }
 
 // ResolveAgentDir returns the default install directory for the agent.
 // For Claude agent, it returns ~/.claude/skills.
 // Returns an error if the agent name is not "claude" or if the home directory cannot be determined.
 // Requirements: 10.3, 12.2, 12.3
-func (a *ClaudeAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
+func (a *Claude) ResolveAgentDir(agentName string) (string, error) {
 	if agentName == "" {
 		return "", fmt.Errorf("agent name cannot be empty")
 	}
@@ -41,6 +41,6 @@ func (a *ClaudeAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
 
 // AgentName returns the name of the agent this adapter supports.
 // Requirements: 10.4
-func (a *ClaudeAgentAdapter) AgentName() string {
+func (a *Claude) AgentName() string {
 	return "claude"
 }

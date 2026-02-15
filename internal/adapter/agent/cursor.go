@@ -1,4 +1,4 @@
-package adapter
+package agent
 
 import (
 	"fmt"
@@ -8,19 +8,19 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-// CursorAgentAdapter provides directory resolution for the Cursor editor agent.
+// Cursor provides directory resolution for the Cursor editor agent.
 // It returns the default installation directory for Cursor agent when --agent flag is specified.
-type CursorAgentAdapter struct{}
+type Cursor struct{}
 
-// NewCursorAgentAdapter creates a new Cursor agent adapter instance.
-func NewCursorAgentAdapter() port.AgentProvider {
-	return &CursorAgentAdapter{}
+// NewCursor creates a new Cursor agent adapter instance.
+func NewCursor() port.AgentProvider {
+	return &Cursor{}
 }
 
 // ResolveAgentDir returns the default install directory for the agent.
 // For Cursor agent, it returns ~/.cursor/rules.
 // Returns an error if the agent name is not "cursor" or if the home directory cannot be determined.
-func (a *CursorAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
+func (a *Cursor) ResolveAgentDir(agentName string) (string, error) {
 	if agentName == "" {
 		return "", fmt.Errorf("agent name cannot be empty")
 	}
@@ -38,6 +38,6 @@ func (a *CursorAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
 }
 
 // AgentName returns the name of the agent this adapter supports.
-func (a *CursorAgentAdapter) AgentName() string {
+func (a *Cursor) AgentName() string {
 	return "cursor"
 }

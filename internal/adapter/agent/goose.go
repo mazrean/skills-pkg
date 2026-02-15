@@ -1,4 +1,4 @@
-package adapter
+package agent
 
 import (
 	"fmt"
@@ -8,19 +8,19 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-// GooseAgentAdapter provides directory resolution for the Goose agent.
+// Goose provides directory resolution for the Goose agent.
 // It returns the default installation directory for Goose agent when --agent flag is specified.
-type GooseAgentAdapter struct{}
+type Goose struct{}
 
-// NewGooseAgentAdapter creates a new Goose agent adapter instance.
-func NewGooseAgentAdapter() port.AgentProvider {
-	return &GooseAgentAdapter{}
+// NewGoose creates a new Goose agent adapter instance.
+func NewGoose() port.AgentProvider {
+	return &Goose{}
 }
 
 // ResolveAgentDir returns the default install directory for the agent.
 // For Goose agent, it returns ~/.config/goose/skills.
 // Returns an error if the agent name is not "goose" or if the home directory cannot be determined.
-func (a *GooseAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
+func (a *Goose) ResolveAgentDir(agentName string) (string, error) {
 	if agentName == "" {
 		return "", fmt.Errorf("agent name cannot be empty")
 	}
@@ -38,6 +38,6 @@ func (a *GooseAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
 }
 
 // AgentName returns the name of the agent this adapter supports.
-func (a *GooseAgentAdapter) AgentName() string {
+func (a *Goose) AgentName() string {
 	return "goose"
 }

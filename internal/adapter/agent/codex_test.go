@@ -1,14 +1,15 @@
-package adapter_test
+package agent_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/agent"
 )
 
-func TestGooseAgentAdapter_ResolveAgentDir(t *testing.T) {
+// TestCodex_ResolveAgentDir tests directory resolution for Codex agent.
+func TestCodex_ResolveAgentDir(t *testing.T) {
 	tests := []struct {
 		name            string
 		agentName       string
@@ -18,11 +19,11 @@ func TestGooseAgentAdapter_ResolveAgentDir(t *testing.T) {
 		checkHomePrefix bool
 	}{
 		{
-			name:            "goose agent",
-			agentName:       "goose",
+			name:            "codex agent",
+			agentName:       "codex",
 			wantErr:         false,
 			checkAbsolute:   true,
-			checkSuffix:     filepath.Join(".config", "goose", "skills"),
+			checkSuffix:     filepath.Join(".codex", "skills"),
 			checkHomePrefix: true,
 		},
 		{
@@ -39,7 +40,7 @@ func TestGooseAgentAdapter_ResolveAgentDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewGooseAgentAdapter()
+			provider := agent.NewCodex()
 
 			dir, err := provider.ResolveAgentDir(tt.agentName)
 			if (err != nil) != tt.wantErr {
@@ -67,7 +68,7 @@ func TestGooseAgentAdapter_ResolveAgentDir(t *testing.T) {
 				if err != nil {
 					t.Fatalf("os.UserHomeDir() error = %v", err)
 				}
-				expected := filepath.Join(home, ".config", "goose", "skills")
+				expected := filepath.Join(home, ".codex", "skills")
 				if dir != expected {
 					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
 				}
@@ -76,20 +77,21 @@ func TestGooseAgentAdapter_ResolveAgentDir(t *testing.T) {
 	}
 }
 
-func TestGooseAgentAdapter_AgentName(t *testing.T) {
+// TestCodex_AgentName tests agent name retrieval.
+func TestCodex_AgentName(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
 	}{
 		{
-			name: "should return goose",
-			want: "goose",
+			name: "should return codex",
+			want: "codex",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewGooseAgentAdapter()
+			provider := agent.NewCodex()
 			if got := provider.AgentName(); got != tt.want {
 				t.Errorf("AgentName() = %q, want %q", got, tt.want)
 			}

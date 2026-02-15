@@ -1,15 +1,14 @@
-package adapter_test
+package agent_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/agent"
 )
 
-// TestCodexAgentAdapter_ResolveAgentDir tests directory resolution for Codex agent.
-func TestCodexAgentAdapter_ResolveAgentDir(t *testing.T) {
+func TestOpencode_ResolveAgentDir(t *testing.T) {
 	tests := []struct {
 		name            string
 		agentName       string
@@ -19,11 +18,11 @@ func TestCodexAgentAdapter_ResolveAgentDir(t *testing.T) {
 		checkHomePrefix bool
 	}{
 		{
-			name:            "codex agent",
-			agentName:       "codex",
+			name:            "opencode agent",
+			agentName:       "opencode",
 			wantErr:         false,
 			checkAbsolute:   true,
-			checkSuffix:     filepath.Join(".codex", "skills"),
+			checkSuffix:     filepath.Join(".config", "opencode", "skill"),
 			checkHomePrefix: true,
 		},
 		{
@@ -40,7 +39,7 @@ func TestCodexAgentAdapter_ResolveAgentDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewCodexAgentAdapter()
+			provider := agent.NewOpencode()
 
 			dir, err := provider.ResolveAgentDir(tt.agentName)
 			if (err != nil) != tt.wantErr {
@@ -68,7 +67,7 @@ func TestCodexAgentAdapter_ResolveAgentDir(t *testing.T) {
 				if err != nil {
 					t.Fatalf("os.UserHomeDir() error = %v", err)
 				}
-				expected := filepath.Join(home, ".codex", "skills")
+				expected := filepath.Join(home, ".config", "opencode", "skill")
 				if dir != expected {
 					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
 				}
@@ -77,21 +76,20 @@ func TestCodexAgentAdapter_ResolveAgentDir(t *testing.T) {
 	}
 }
 
-// TestCodexAgentAdapter_AgentName tests agent name retrieval.
-func TestCodexAgentAdapter_AgentName(t *testing.T) {
+func TestOpencode_AgentName(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
 	}{
 		{
-			name: "should return codex",
-			want: "codex",
+			name: "should return opencode",
+			want: "opencode",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewCodexAgentAdapter()
+			provider := agent.NewOpencode()
 			if got := provider.AgentName(); got != tt.want {
 				t.Errorf("AgentName() = %q, want %q", got, tt.want)
 			}

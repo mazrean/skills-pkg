@@ -7,7 +7,8 @@ import (
 	"reflect"
 
 	"github.com/alecthomas/kong"
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/pkgmanager"
+	"github.com/mazrean/skills-pkg/internal/adapter/service"
 	"github.com/mazrean/skills-pkg/internal/domain"
 	"github.com/mazrean/skills-pkg/internal/port"
 )
@@ -41,10 +42,10 @@ func (c *AddCmd) Run(ctx *kong.Context) error {
 // Requirements: 6.3, 12.1, 12.2, 12.3
 func (c *AddCmd) run(configPath string, verbose bool) error {
 	// Create default dependencies
-	hashService := adapter.NewDirhashService()
+	hashService := service.NewDirhash()
 	packageManagers := []port.PackageManager{
-		adapter.NewGitAdapter(),
-		adapter.NewGoModAdapter(),
+		pkgmanager.NewGit(),
+		pkgmanager.NewGoMod(),
 	}
 
 	return c.runWithDeps(configPath, verbose, hashService, packageManagers)

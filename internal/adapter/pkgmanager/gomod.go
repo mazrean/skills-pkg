@@ -1,6 +1,6 @@
-// Package adapter provides implementations of port interfaces for external system integrations.
-// It includes adapters for Go Module proxy.
-package adapter
+// Package pkgmanager provides implementations of port interfaces for package manager integrations.
+// It includes adapters for Go Module proxy and Git repositories.
+package pkgmanager
 
 import (
 	"archive/zip"
@@ -34,11 +34,11 @@ type proxyEntry struct {
 	fallback bool   // true if this is a fallback entry (comma-separated)
 }
 
-// GoModAdapter implements the PackageManager interface for Go Module proxy.
+// GoMod implements the PackageManager interface for Go Module proxy.
 // It handles downloading modules from Go Module proxy, extracting zip files,
 // and retrieving the latest version.
 // Requirements: 4.2, 4.5, 4.6, 7.4, 11.2
-type GoModAdapter struct {
+type GoMod struct {
 	httpClient *http.Client
 	proxies    []proxyEntry
 }
@@ -90,14 +90,14 @@ func parseGOPROXY(goproxy string) []proxyEntry {
 	return entries
 }
 
-// NewGoModAdapter creates a new Go Module adapter instance.
+// NewGoMod creates a new Go Module adapter instance.
 // It uses the default Go Module proxy (https://proxy.golang.org) unless
 // overridden by the source options or GOPROXY environment variable.
-func NewGoModAdapter() *GoModAdapter {
+func NewGoMod() *GoMod {
 	goproxy := os.Getenv("GOPROXY")
 	proxies := parseGOPROXY(goproxy)
 
-	return &GoModAdapter{
+	return &GoMod{
 		proxies:    proxies,
 		httpClient: &http.Client{},
 	}
@@ -105,7 +105,7 @@ func NewGoModAdapter() *GoModAdapter {
 
 // SourceType returns "go-module" to identify this adapter as a Go Module package manager.
 // Requirements: 11.2
-func (a *GoModAdapter) SourceType() string {
+func (a *GoMod) SourceType() string {
 	return "go-module"
 }
 
@@ -113,7 +113,7 @@ func (a *GoModAdapter) SourceType() string {
 // It fetches the module metadata, downloads the zip file, and extracts it to a temporary directory.
 // If version is "latest" or empty, it uses the latest version from the proxy.
 // Requirements: 4.2, 4.5, 4.6, 12.2, 12.3
-func (a *GoModAdapter) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
+func (a *GoMod) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
 	if err := source.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid source configuration: %w", err)
 	}
@@ -161,7 +161,7 @@ func (a *GoModAdapter) Download(ctx context.Context, source *port.Source, versio
 // GetLatestVersion retrieves the latest version from the Go Module proxy.
 // It returns the version specified by the @latest endpoint.
 // Requirements: 7.4, 12.2, 12.3
-func (a *GoModAdapter) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
+func (a *GoMod) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
 	if err := source.Validate(); err != nil {
 		return "", fmt.Errorf("invalid source configuration: %w", err)
 	}
@@ -187,7 +187,7 @@ type goModuleLatestInfo struct {
 
 // fetchLatestVersionWithProxies tries to fetch the latest version using the configured proxies.
 // It tries each proxy in order until one succeeds or all fail.
-func (a *GoModAdapter) fetchLatestVersionWithProxies(ctx context.Context, proxies []proxyEntry, modulePath string) (string, error) {
+func (a *GoMod) fetchLatestVersionWithProxies(ctx context.Context, proxies []proxyEntry, modulePath string) (string, error) {
 	var lastErr error
 
 	for _, proxy := range proxies {
@@ -231,7 +231,7 @@ func (a *GoModAdapter) fetchLatestVersionWithProxies(ctx context.Context, proxie
 
 // downloadWithProxies tries to download the module using the configured proxies.
 // It tries each proxy in order until one succeeds or all fail.
-func (a *GoModAdapter) downloadWithProxies(ctx context.Context, proxies []proxyEntry, modulePath, version, targetDir string) error {
+func (a *GoMod) downloadWithProxies(ctx context.Context, proxies []proxyEntry, modulePath, version, targetDir string) error {
 	var lastErr error
 
 	for _, proxy := range proxies {
@@ -276,7 +276,7 @@ func (a *GoModAdapter) downloadWithProxies(ctx context.Context, proxies []proxyE
 
 // fetchLatestVersion fetches the latest version from the Go Module proxy.
 // Requirements: 7.4, 12.2, 12.3
-func (a *GoModAdapter) fetchLatestVersion(ctx context.Context, proxyURL, modulePath string) (string, error) {
+func (a *GoMod) fetchLatestVersion(ctx context.Context, proxyURL, modulePath string) (string, error) {
 	url := fmt.Sprintf("%s/%s/@latest", strings.TrimSuffix(proxyURL, "/"), modulePath)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -318,7 +318,7 @@ func (a *GoModAdapter) fetchLatestVersion(ctx context.Context, proxyURL, moduleP
 
 // downloadAndExtractZip downloads a zip file and extracts it to the target directory.
 // Requirements: 4.2, 4.5, 12.2, 12.3
-func (a *GoModAdapter) downloadAndExtractZip(ctx context.Context, zipURL, targetDir, modulePath, version string) error {
+func (a *GoMod) downloadAndExtractZip(ctx context.Context, zipURL, targetDir, modulePath, version string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, zipURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create HTTP request: %w", err)
@@ -367,7 +367,7 @@ func (a *GoModAdapter) downloadAndExtractZip(ctx context.Context, zipURL, target
 // Go Module zip files have a prefix directory with the module path and version,
 // which is stripped during extraction.
 // Requirements: 4.2
-func (a *GoModAdapter) extractZip(zipPath, targetDir, modulePath, version string) error {
+func (a *GoMod) extractZip(zipPath, targetDir, modulePath, version string) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return fmt.Errorf("failed to open zip file: %w", err)
@@ -438,7 +438,7 @@ func (a *GoModAdapter) extractZip(zipPath, targetDir, modulePath, version string
 
 // createTempDir creates a temporary directory for Go modules.
 // It uses the SKILLSPKG_TEMP_DIR environment variable if set, otherwise uses os.TempDir().
-func (a *GoModAdapter) createTempDir() (string, error) {
+func (a *GoMod) createTempDir() (string, error) {
 	baseDir := os.Getenv("SKILLSPKG_TEMP_DIR")
 	if baseDir == "" {
 		baseDir = os.TempDir()
@@ -460,7 +460,7 @@ func (a *GoModAdapter) createTempDir() (string, error) {
 
 // fetchLatestVersionDirect fetches the latest version directly from the version control system.
 // It uses git to query the repository for the latest tag.
-func (a *GoModAdapter) fetchLatestVersionDirect(ctx context.Context, modulePath string) (string, error) {
+func (a *GoMod) fetchLatestVersionDirect(ctx context.Context, modulePath string) (string, error) {
 	// Convert module path to repository URL
 	// For simplicity, we assume the module path is a valid git repository URL
 	// In a full implementation, this would need to handle various VCS systems and URL schemes
@@ -509,7 +509,7 @@ func (a *GoModAdapter) fetchLatestVersionDirect(ctx context.Context, modulePath 
 
 // downloadDirect downloads a module directly from the version control system.
 // It uses git to clone the repository at the specified version.
-func (a *GoModAdapter) downloadDirect(ctx context.Context, modulePath, version, targetDir string) error {
+func (a *GoMod) downloadDirect(ctx context.Context, modulePath, version, targetDir string) error {
 	// Convert module path to repository URL
 	repoURL := "https://" + modulePath
 

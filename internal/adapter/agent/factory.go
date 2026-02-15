@@ -1,4 +1,4 @@
-package adapter
+package agent
 
 import (
 	"fmt"
@@ -8,19 +8,19 @@ import (
 	"github.com/mazrean/skills-pkg/internal/port"
 )
 
-// FactoryAgentAdapter provides directory resolution for the Factory agent.
+// Factory provides directory resolution for the Factory agent.
 // It returns the default installation directory for Factory agent when --agent flag is specified.
-type FactoryAgentAdapter struct{}
+type Factory struct{}
 
-// NewFactoryAgentAdapter creates a new Factory agent adapter instance.
-func NewFactoryAgentAdapter() port.AgentProvider {
-	return &FactoryAgentAdapter{}
+// NewFactory creates a new Factory agent adapter instance.
+func NewFactory() port.AgentProvider {
+	return &Factory{}
 }
 
 // ResolveAgentDir returns the default install directory for the agent.
 // For Factory agent, it returns ~/.factory/skills.
 // Returns an error if the agent name is not "factory" or if the home directory cannot be determined.
-func (a *FactoryAgentAdapter) ResolveAgentDir(agentName string) (string, error) {
+func (a *Factory) ResolveAgentDir(agentName string) (string, error) {
 	if agentName == "" {
 		return "", fmt.Errorf("agent name cannot be empty")
 	}
@@ -38,6 +38,6 @@ func (a *FactoryAgentAdapter) ResolveAgentDir(agentName string) (string, error) 
 }
 
 // AgentName returns the name of the agent this adapter supports.
-func (a *FactoryAgentAdapter) AgentName() string {
+func (a *Factory) AgentName() string {
 	return "factory"
 }

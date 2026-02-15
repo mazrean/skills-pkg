@@ -1,14 +1,14 @@
-package adapter_test
+package agent_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/agent"
 )
 
-func TestCopilotAgentAdapter_ResolveAgentDir(t *testing.T) {
+func TestGemini_ResolveAgentDir(t *testing.T) {
 	tests := []struct {
 		name            string
 		agentName       string
@@ -18,11 +18,11 @@ func TestCopilotAgentAdapter_ResolveAgentDir(t *testing.T) {
 		checkHomePrefix bool
 	}{
 		{
-			name:            "copilot agent",
-			agentName:       "copilot",
+			name:            "gemini agent",
+			agentName:       "gemini",
 			wantErr:         false,
 			checkAbsolute:   true,
-			checkSuffix:     filepath.Join(".github", "skills"),
+			checkSuffix:     filepath.Join(".gemini", "skills"),
 			checkHomePrefix: true,
 		},
 		{
@@ -39,7 +39,7 @@ func TestCopilotAgentAdapter_ResolveAgentDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewCopilotAgentAdapter()
+			provider := agent.NewGemini()
 
 			dir, err := provider.ResolveAgentDir(tt.agentName)
 			if (err != nil) != tt.wantErr {
@@ -67,7 +67,7 @@ func TestCopilotAgentAdapter_ResolveAgentDir(t *testing.T) {
 				if err != nil {
 					t.Fatalf("os.UserHomeDir() error = %v", err)
 				}
-				expected := filepath.Join(home, ".github", "skills")
+				expected := filepath.Join(home, ".gemini", "skills")
 				if dir != expected {
 					t.Errorf("ResolveAgentDir(%q) = %q, want %q", tt.agentName, dir, expected)
 				}
@@ -76,20 +76,20 @@ func TestCopilotAgentAdapter_ResolveAgentDir(t *testing.T) {
 	}
 }
 
-func TestCopilotAgentAdapter_AgentName(t *testing.T) {
+func TestGemini_AgentName(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
 	}{
 		{
-			name: "should return copilot",
-			want: "copilot",
+			name: "should return gemini",
+			want: "gemini",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			provider := adapter.NewCopilotAgentAdapter()
+			provider := agent.NewGemini()
 			if got := provider.AgentName(); got != tt.want {
 				t.Errorf("AgentName() = %q, want %q", got, tt.want)
 			}

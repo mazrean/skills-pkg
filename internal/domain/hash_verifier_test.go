@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mazrean/skills-pkg/internal/adapter"
+	"github.com/mazrean/skills-pkg/internal/adapter/service"
 	"github.com/mazrean/skills-pkg/internal/domain"
 	"github.com/mazrean/skills-pkg/internal/port"
 )
@@ -111,7 +111,7 @@ func TestHashVerifier_Verify(t *testing.T) {
 			}
 
 			// Calculate the expected hash
-			hashService := adapter.NewDirhashService()
+			hashService := service.NewDirhash()
 			expectedHash, err := hashService.CalculateHash(ctx, skillDir)
 			if err != nil {
 				t.Fatalf("failed to calculate expected hash: %v", err)
@@ -229,7 +229,7 @@ func TestHashVerifier_VerifyAll(t *testing.T) {
 
 			// Create test skill directories
 			skillDirs := make([]string, tt.skillCount)
-			hashService := adapter.NewDirhashService()
+			hashService := service.NewDirhash()
 			hashes := make([]*port.HashResult, tt.skillCount)
 
 			for i := 0; i < tt.skillCount; i++ {
