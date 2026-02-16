@@ -72,8 +72,9 @@ func (a *Git) Download(ctx context.Context, source *port.Source, version string)
 	}
 
 	return &port.DownloadResult{
-		Path:    tempDir,
-		Version: actualVersion,
+		Path:      tempDir,
+		Version:   actualVersion,
+		FromGoMod: false,
 	}, nil
 }
 

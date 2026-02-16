@@ -626,6 +626,11 @@ require (
 		t.Errorf("Download() version = %v, want v0.0.0-20231110203233-9a3e6036ecaa", result.Version)
 	}
 
+	// Verify FromGoMod flag is set
+	if !result.FromGoMod {
+		t.Errorf("Download() FromGoMod = %v, want true (version was resolved from go.mod)", result.FromGoMod)
+	}
+
 	// Clean up
 	if err := os.RemoveAll(result.Path); err != nil {
 		t.Error(err)
@@ -684,6 +689,11 @@ require (
 	// We can't assert the exact version, but it should not be the go.mod version
 	// if a newer version exists
 	t.Logf("Downloaded version: %s (go.mod has v0.0.0-20231110203233-9a3e6036ecaa)", result.Version)
+
+	// Verify FromGoMod flag is NOT set (explicit "latest" bypasses go.mod)
+	if result.FromGoMod {
+		t.Errorf("Download() FromGoMod = %v, want false (explicit 'latest' should not use go.mod)", result.FromGoMod)
+	}
 
 	// Clean up
 	if err := os.RemoveAll(result.Path); err != nil {

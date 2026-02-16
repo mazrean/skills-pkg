@@ -38,8 +38,9 @@ func (m *mockPackageManager) SourceType() string {
 func (m *mockPackageManager) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
 	// Use the temporary directory provided by the test
 	return &port.DownloadResult{
-		Path:    m.tmpDir,
-		Version: version,
+		Path:      m.tmpDir,
+		Version:   version,
+		FromGoMod: false,
 	}, nil
 }
 

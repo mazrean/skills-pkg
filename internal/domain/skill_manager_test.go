@@ -213,9 +213,9 @@ type mockPackageManagerMultiSkill struct {
 func (m *mockPackageManagerMultiSkill) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
 	// Return different results based on the source URL or version to avoid race conditions
 	if source.URL == "https://github.com/example/skill1.git" || version == "v1.0.0" {
-		return &port.DownloadResult{Path: m.downloadDir1, Version: "v1.0.0"}, nil
+		return &port.DownloadResult{Path: m.downloadDir1, Version: "v1.0.0", FromGoMod: false}, nil
 	}
-	return &port.DownloadResult{Path: m.downloadDir2, Version: "v2.0.0"}, nil
+	return &port.DownloadResult{Path: m.downloadDir2, Version: "v2.0.0", FromGoMod: false}, nil
 }
 
 func (m *mockPackageManagerMultiSkill) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
@@ -269,8 +269,9 @@ func TestInstall_SingleSkill(t *testing.T) {
 	pm := &mockPackageManagerWithDownload{
 		sourceType: "git",
 		downloadResult: &port.DownloadResult{
-			Path:    downloadDir,
-			Version: "v1.0.0",
+			Path:      downloadDir,
+			Version:   "v1.0.0",
+			FromGoMod: false,
 		},
 	}
 
@@ -773,8 +774,9 @@ type mockPackageManagerWithUpdate struct {
 
 func (m *mockPackageManagerWithUpdate) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
 	return &port.DownloadResult{
-		Path:    m.downloadPath,
-		Version: version,
+		Path:      m.downloadPath,
+		Version:   version,
+		FromGoMod: false,
 	}, nil
 }
 
@@ -983,5 +985,87 @@ func TestUninstall_RemoveFromAllTargets(t *testing.T) {
 		if _, statErr := os.Stat(skillDir); !os.IsNotExist(statErr) {
 			t.Errorf("Skill directory still exists at %s", skillDir)
 		}
+	}
+}
+
+// TestInstall_WithGoModVersion tests that when version is resolved from go.mod,
+// hash values are not stored in the configuration
+func TestInstall_WithGoModVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := tmpDir + "/.skillspkg.toml"
+	installDir := tmpDir + "/install"
+
+	// Initialize config
+	configManager := NewConfigManager(configPath)
+	if err := configManager.Initialize(context.Background(), []string{installDir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create download directory with a subdirectory
+	downloadDir := tmpDir + "/download"
+	if err := os.MkdirAll(downloadDir+"/skills/test-skill", 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Mock package manager that returns FromGoMod=true
+	pm := &mockPackageManagerWithDownload{
+		sourceType: "go-module",
+		downloadResult: &port.DownloadResult{
+			Path:      downloadDir,
+			Version:   "v1.2.3",
+			FromGoMod: true, // Version was resolved from go.mod
+		},
+	}
+
+	// Setup skill manager
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{pm})
+
+	// Create skill with go-module source
+	skill := &Skill{
+		Name:    "test-skill",
+		Source:  "go-module",
+		URL:     "github.com/example/test-skill",
+		Version: "",
+		SubDir:  "skills/test-skill",
+	}
+
+	// Add skill to config
+	config, err := configManager.Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.Skills = append(config.Skills, skill)
+	if err := configManager.Save(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+
+	// Install the skill
+	if err := skillManager.Install(context.Background(), "test-skill"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	// Load config and verify hash values are empty
+	config, err = configManager.Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	installedSkill := config.FindSkillByName("test-skill")
+	if installedSkill == nil {
+		t.Fatal("Skill not found in config after installation")
+	}
+
+	// Verify hash values are NOT set when using go.mod version
+	if installedSkill.HashAlgo != "" {
+		t.Errorf("Expected HashAlgo to be empty when using go.mod version, got %s", installedSkill.HashAlgo)
+	}
+	if installedSkill.HashValue != "" {
+		t.Errorf("Expected HashValue to be empty when using go.mod version, got %s", installedSkill.HashValue)
+	}
+
+	// Verify version was updated
+	if installedSkill.Version != "v1.2.3" {
+		t.Errorf("Expected Version to be v1.2.3, got %s", installedSkill.Version)
 	}
 }

@@ -178,11 +178,13 @@ func (a *GoMod) Download(ctx context.Context, source *port.Source, version strin
 
 	// Resolve version
 	resolvedVersion := version
+	fromGoMod := false
 	if version == "" {
 		// First, try to get version from go.mod for unspecified version
 		if goModPath, err := findGoMod(); err == nil {
 			if goModVersion, err := getVersionFromGoMod(goModPath, source.URL); err == nil && goModVersion != "" {
 				resolvedVersion = goModVersion
+				fromGoMod = true
 			}
 		}
 	}
@@ -211,8 +213,9 @@ func (a *GoMod) Download(ctx context.Context, source *port.Source, version strin
 	}
 
 	return &port.DownloadResult{
-		Path:    tempDir,
-		Version: resolvedVersion,
+		Path:      tempDir,
+		Version:   resolvedVersion,
+		FromGoMod: fromGoMod,
 	}, nil
 }
 
