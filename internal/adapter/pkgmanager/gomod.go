@@ -178,22 +178,22 @@ func (a *GoMod) Download(ctx context.Context, source *port.Source, version strin
 
 	// Resolve version
 	resolvedVersion := version
-	if version == "" || version == "latest" {
-		// First, try to get version from go.mod
+	if version == "" {
+		// First, try to get version from go.mod for unspecified version
 		if goModPath, err := findGoMod(); err == nil {
 			if goModVersion, err := getVersionFromGoMod(goModPath, source.URL); err == nil && goModVersion != "" {
 				resolvedVersion = goModVersion
 			}
 		}
+	}
 
-		// If not found in go.mod, fetch the latest version
-		if resolvedVersion == "" || resolvedVersion == "latest" {
-			latestVersion, err := a.fetchLatestVersionWithProxies(ctx, proxies, source.URL)
-			if err != nil {
-				return nil, err
-			}
-			resolvedVersion = latestVersion
+	// If still empty or explicitly "latest", fetch the latest version
+	if resolvedVersion == "" || resolvedVersion == "latest" {
+		latestVersion, err := a.fetchLatestVersionWithProxies(ctx, proxies, source.URL)
+		if err != nil {
+			return nil, err
 		}
+		resolvedVersion = latestVersion
 	}
 
 	// Create temp directory
@@ -216,8 +216,7 @@ func (a *GoMod) Download(ctx context.Context, source *port.Source, version strin
 	}, nil
 }
 
-// GetLatestVersion retrieves the latest version from go.mod if available,
-// otherwise from the Go Module proxy.
+// GetLatestVersion retrieves the latest version from the Go Module proxy.
 // It returns the version specified by the @latest endpoint.
 // Requirements: 7.4, 12.2, 12.3
 func (a *GoMod) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
@@ -227,13 +226,6 @@ func (a *GoMod) GetLatestVersion(ctx context.Context, source *port.Source) (stri
 
 	if source.Type != "go-module" {
 		return "", fmt.Errorf("source type must be 'go-module', got '%s'", source.Type)
-	}
-
-	// First, try to get version from go.mod
-	if goModPath, err := findGoMod(); err == nil {
-		if goModVersion, err := getVersionFromGoMod(goModPath, source.URL); err == nil && goModVersion != "" {
-			return goModVersion, nil
-		}
 	}
 
 	// Get proxies from source options if provided, otherwise use configured proxies

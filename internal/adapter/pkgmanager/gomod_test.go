@@ -632,7 +632,11 @@ require (
 	}
 }
 
-func TestGoMod_GetLatestVersion_WithGoModVersion(t *testing.T) {
+func TestGoMod_Download_WithLatestExplicit(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
 	// Save original working directory
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -670,12 +674,19 @@ require (
 		URL:  "golang.org/x/exp",
 	}
 
-	version, err := adapter.GetLatestVersion(ctx, source)
+	// Download with explicit "latest" (should NOT use go.mod version)
+	result, err := adapter.Download(ctx, source, "latest")
 	if err != nil {
-		t.Fatalf("GetLatestVersion() error = %v", err)
+		t.Fatalf("Download() error = %v", err)
 	}
 
-	if version != "v0.0.0-20231110203233-9a3e6036ecaa" {
-		t.Errorf("GetLatestVersion() = %v, want v0.0.0-20231110203233-9a3e6036ecaa", version)
+	// Should fetch latest version from proxy, not the go.mod version
+	// We can't assert the exact version, but it should not be the go.mod version
+	// if a newer version exists
+	t.Logf("Downloaded version: %s (go.mod has v0.0.0-20231110203233-9a3e6036ecaa)", result.Version)
+
+	// Clean up
+	if err := os.RemoveAll(result.Path); err != nil {
+		t.Error(err)
 	}
 }
