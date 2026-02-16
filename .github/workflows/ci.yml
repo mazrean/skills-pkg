@@ -17,8 +17,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
-          cache: true
+          go-version-file: go.work
 
       - name: Run custom lint
         run: go run ./tools/lint ./...
@@ -26,9 +25,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.24', '1.25']
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -36,14 +32,12 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
+          go-version-file: go.work
 
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
-        if: matrix.go-version == '1.25'
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.out
@@ -63,8 +57,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
-          cache: true
+          go-version-file: go.work
 
       - name: Build
         run: go build -v ./...
@@ -82,8 +75,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
-          cache: true
+          go-version-file: go.work
 
       - name: Run go mod tidy
         run: go mod tidy
