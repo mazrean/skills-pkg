@@ -396,3 +396,286 @@ func TestParseGOPROXY(t *testing.T) {
 		})
 	}
 }
+
+func TestFindGoMod(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupDir  func(t *testing.T) string // Returns the directory to change to
+		wantErr   bool
+		checkPath bool
+	}{
+		{
+			name: "go.mod in current directory",
+			setupDir: func(t *testing.T) string {
+				t.Helper()
+				tempDir := t.TempDir()
+				goModPath := filepath.Join(tempDir, "go.mod")
+				if err := os.WriteFile(goModPath, []byte("module test\n"), 0644); err != nil {
+					t.Fatal(err)
+				}
+				return tempDir
+			},
+			wantErr:   false,
+			checkPath: true,
+		},
+		{
+			name: "go.mod in parent directory",
+			setupDir: func(t *testing.T) string {
+				t.Helper()
+				tempDir := t.TempDir()
+				goModPath := filepath.Join(tempDir, "go.mod")
+				if err := os.WriteFile(goModPath, []byte("module test\n"), 0644); err != nil {
+					t.Fatal(err)
+				}
+				subDir := filepath.Join(tempDir, "subdir")
+				if err := os.Mkdir(subDir, 0755); err != nil {
+					t.Fatal(err)
+				}
+				return subDir
+			},
+			wantErr:   false,
+			checkPath: true,
+		},
+		{
+			name: "no go.mod found",
+			setupDir: func(t *testing.T) string {
+				t.Helper()
+				tempDir := t.TempDir()
+				return tempDir
+			},
+			wantErr:   true,
+			checkPath: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Save original working directory
+			origDir, err := os.Getwd()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := os.Chdir(origDir); err != nil {
+					t.Error(err)
+				}
+			}()
+
+			// Change to test directory
+			testDir := tt.setupDir(t)
+			if err := os.Chdir(testDir); err != nil {
+				t.Fatal(err)
+			}
+
+			goModPath, err := findGoMod()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("findGoMod() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.checkPath && goModPath == "" {
+				t.Error("findGoMod() returned empty path")
+			}
+
+			if tt.checkPath {
+				if _, err := os.Stat(goModPath); os.IsNotExist(err) {
+					t.Errorf("findGoMod() returned non-existent path: %s", goModPath)
+				}
+			}
+		})
+	}
+}
+
+func TestGetVersionFromGoMod(t *testing.T) {
+	tests := []struct {
+		name        string
+		goModContent string
+		modulePath  string
+		wantVersion string
+		wantErr     bool
+	}{
+		{
+			name: "module found with version",
+			goModContent: `module test
+
+require (
+	github.com/example/skill v1.2.3
+	golang.org/x/tools v0.1.0
+)
+`,
+			modulePath:  "github.com/example/skill",
+			wantVersion: "v1.2.3",
+			wantErr:     false,
+		},
+		{
+			name: "module not found",
+			goModContent: `module test
+
+require (
+	golang.org/x/tools v0.1.0
+)
+`,
+			modulePath:  "github.com/example/skill",
+			wantVersion: "",
+			wantErr:     false,
+		},
+		{
+			name: "indirect dependency",
+			goModContent: `module test
+
+require (
+	github.com/example/skill v1.2.3 // indirect
+	golang.org/x/tools v0.1.0
+)
+`,
+			modulePath:  "github.com/example/skill",
+			wantVersion: "v1.2.3",
+			wantErr:     false,
+		},
+		{
+			name: "pseudo-version",
+			goModContent: `module test
+
+require (
+	github.com/example/skill v0.0.0-20231110203233-9a3e6036ecaa
+)
+`,
+			modulePath:  "github.com/example/skill",
+			wantVersion: "v0.0.0-20231110203233-9a3e6036ecaa",
+			wantErr:     false,
+		},
+		{
+			name:         "invalid go.mod",
+			goModContent: "invalid content",
+			modulePath:   "github.com/example/skill",
+			wantVersion:  "",
+			wantErr:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			goModPath := filepath.Join(tempDir, "go.mod")
+			if err := os.WriteFile(goModPath, []byte(tt.goModContent), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			version, err := getVersionFromGoMod(goModPath, tt.modulePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getVersionFromGoMod() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if version != tt.wantVersion {
+				t.Errorf("getVersionFromGoMod() = %v, want %v", version, tt.wantVersion)
+			}
+		})
+	}
+}
+
+func TestGoMod_Download_WithGoModVersion(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Save original working directory
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	// Create temporary directory with go.mod
+	tempDir := t.TempDir()
+	goModContent := `module test
+
+require (
+	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
+)
+`
+	goModPath := filepath.Join(tempDir, "go.mod")
+	if err := os.WriteFile(goModPath, []byte(goModContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Change to temp directory
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter := NewGoMod()
+	ctx := context.Background()
+
+	source := &port.Source{
+		Type: "go-module",
+		URL:  "golang.org/x/exp",
+	}
+
+	// Download without specifying version (should use go.mod version)
+	result, err := adapter.Download(ctx, source, "")
+	if err != nil {
+		t.Fatalf("Download() error = %v", err)
+	}
+
+	if result.Version != "v0.0.0-20231110203233-9a3e6036ecaa" {
+		t.Errorf("Download() version = %v, want v0.0.0-20231110203233-9a3e6036ecaa", result.Version)
+	}
+
+	// Clean up
+	if err := os.RemoveAll(result.Path); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestGoMod_GetLatestVersion_WithGoModVersion(t *testing.T) {
+	// Save original working directory
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	// Create temporary directory with go.mod
+	tempDir := t.TempDir()
+	goModContent := `module test
+
+require (
+	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
+)
+`
+	goModPath := filepath.Join(tempDir, "go.mod")
+	if err := os.WriteFile(goModPath, []byte(goModContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Change to temp directory
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter := NewGoMod()
+	ctx := context.Background()
+
+	source := &port.Source{
+		Type: "go-module",
+		URL:  "golang.org/x/exp",
+	}
+
+	version, err := adapter.GetLatestVersion(ctx, source)
+	if err != nil {
+		t.Fatalf("GetLatestVersion() error = %v", err)
+	}
+
+	if version != "v0.0.0-20231110203233-9a3e6036ecaa" {
+		t.Errorf("GetLatestVersion() = %v, want v0.0.0-20231110203233-9a3e6036ecaa", version)
+	}
+}
