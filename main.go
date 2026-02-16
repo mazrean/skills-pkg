@@ -31,6 +31,13 @@ func main() {
 		kong.Name("skills-pkg"),
 		kong.Description("Agent Skills package manager for Claude Code and Codex CLI"),
 		kong.UsageOnError(),
+		kong.Exit(func(code int) {
+			// Normalize all non-zero exit codes to 1 for consistency with standard CLI conventions
+			if code != 0 {
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}),
 		kong.Vars{
 			"version": version,
 		},
