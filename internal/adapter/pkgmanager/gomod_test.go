@@ -399,10 +399,10 @@ func TestParseGOPROXY(t *testing.T) {
 
 func TestFindGoMod(t *testing.T) {
 	tests := []struct {
+		setupDir  func(t *testing.T) string
 		name      string
-		setupDir  func(t *testing.T) string // Returns the directory to change to
-		wantErr   bool
 		checkPath bool
+		wantErr   bool
 	}{
 		{
 			name: "go.mod in current directory",
@@ -456,14 +456,14 @@ func TestFindGoMod(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() {
-				if err := os.Chdir(origDir); err != nil {
-					t.Error(err)
+				if chdirErr := os.Chdir(origDir); chdirErr != nil {
+					t.Error(chdirErr)
 				}
 			}()
 
 			// Change to test directory
 			testDir := tt.setupDir(t)
-			if err := os.Chdir(testDir); err != nil {
+			if err = os.Chdir(testDir); err != nil {
 				t.Fatal(err)
 			}
 
@@ -488,11 +488,11 @@ func TestFindGoMod(t *testing.T) {
 
 func TestGetVersionFromGoMod(t *testing.T) {
 	tests := []struct {
-		name        string
+		name         string
 		goModContent string
-		modulePath  string
-		wantVersion string
-		wantErr     bool
+		modulePath   string
+		wantVersion  string
+		wantErr      bool
 	}{
 		{
 			name: "module found with version",
@@ -585,8 +585,8 @@ func TestGoMod_Download_WithGoModVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Error(err)
+		if chdirErr := os.Chdir(origDir); chdirErr != nil {
+			t.Error(chdirErr)
 		}
 	}()
 
@@ -599,12 +599,12 @@ require (
 )
 `
 	goModPath := filepath.Join(tempDir, "go.mod")
-	if err := os.WriteFile(goModPath, []byte(goModContent), 0644); err != nil {
+	if err = os.WriteFile(goModPath, []byte(goModContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	// Change to temp directory
-	if err := os.Chdir(tempDir); err != nil {
+	if err = os.Chdir(tempDir); err != nil {
 		t.Fatal(err)
 	}
 
@@ -648,8 +648,8 @@ func TestGoMod_Download_WithLatestExplicit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := os.Chdir(origDir); err != nil {
-			t.Error(err)
+		if chdirErr := os.Chdir(origDir); chdirErr != nil {
+			t.Error(chdirErr)
 		}
 	}()
 
@@ -662,12 +662,12 @@ require (
 )
 `
 	goModPath := filepath.Join(tempDir, "go.mod")
-	if err := os.WriteFile(goModPath, []byte(goModContent), 0644); err != nil {
+	if err = os.WriteFile(goModPath, []byte(goModContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	// Change to temp directory
-	if err := os.Chdir(tempDir); err != nil {
+	if err = os.Chdir(tempDir); err != nil {
 		t.Fatal(err)
 	}
 

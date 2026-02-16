@@ -1036,12 +1036,12 @@ func TestInstall_WithGoModVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	config.Skills = append(config.Skills, skill)
-	if err := configManager.Save(context.Background(), config); err != nil {
+	if err = configManager.Save(context.Background(), config); err != nil {
 		t.Fatal(err)
 	}
 
 	// Install the skill
-	if err := skillManager.Install(context.Background(), "test-skill"); err != nil {
+	if err = skillManager.Install(context.Background(), "test-skill"); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
 
