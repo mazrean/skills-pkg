@@ -99,8 +99,9 @@ func TestDownloadResultStructure(t *testing.T) {
 		{
 			name: "valid_download_result",
 			result: &port.DownloadResult{
-				Path:    "/tmp/skill",
-				Version: "v1.0.0",
+				Path:      "/tmp/skill",
+				Version:   "v1.0.0",
+				FromGoMod: false,
 			},
 			wantPath:    "/tmp/skill",
 			wantVersion: "v1.0.0",
@@ -124,8 +125,9 @@ type mockPackageManager struct{}
 
 func (m *mockPackageManager) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
 	return &port.DownloadResult{
-		Path:    "/tmp/mock",
-		Version: version,
+		Path:      "/tmp/mock",
+		Version:   version,
+		FromGoMod: false,
 	}, nil
 }
 

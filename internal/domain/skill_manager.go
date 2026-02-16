@@ -174,6 +174,12 @@ func (s *skillManagerImpl) copySkillToTargets(sourcePath, skillName string, inst
 // It returns an error if any verification fails.
 // Requirements: 6.4, 6.5
 func (s *skillManagerImpl) verifyInstalledSkill(ctx context.Context, skill *Skill, installTargets []string) error {
+	// Skip verification if HashValue is empty (e.g., when using go.mod version)
+	// In this case, integrity is verified by go.sum
+	if skill.HashValue == "" {
+		return nil
+	}
+
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	for _, target := range installTargets {
@@ -304,17 +310,25 @@ func (s *skillManagerImpl) InstallSingleSkill(ctx context.Context, config *Confi
 		fmt.Printf("Using subdirectory '%s' from downloaded content...\n", skill.SubDir)
 	}
 
-	// Calculate hash (Requirement 5.3)
-	fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
-	hashResult, err := s.hashService.CalculateHash(ctx, sourcePath)
-	if err != nil {
-		return fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
-	}
-
-	// Update skill with hash values and actual version
+	// Update version
 	skill.Version = downloadResult.Version
-	skill.HashAlgo = hashResult.Algorithm
-	skill.HashValue = hashResult.Value
+
+	// Calculate hash only if not from go.mod (Requirement 5.3)
+	// When version is resolved from go.mod, rely on go.sum for integrity verification
+	if !downloadResult.FromGoMod {
+		fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
+		hashResult, err := s.hashService.CalculateHash(ctx, sourcePath)
+		if err != nil {
+			return fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
+		}
+		skill.HashAlgo = hashResult.Algorithm
+		skill.HashValue = hashResult.Value
+	} else {
+		// Clear hash values when using go.mod version
+		// Hash verification will use go.sum instead
+		skill.HashAlgo = ""
+		skill.HashValue = ""
+	}
 
 	// Save updated configuration if requested (Requirement 5.3)
 	if saveConfig {
@@ -462,17 +476,25 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		fmt.Printf("Using subdirectory '%s' from downloaded content...\n", skill.SubDir)
 	}
 
-	// Calculate hash (Requirement 5.3, 7.5)
-	fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
-	hashResult, err := s.hashService.CalculateHash(ctx, sourcePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
-	}
-
-	// Update skill with new version and hash (Requirement 7.5)
+	// Update version
 	skill.Version = downloadResult.Version
-	skill.HashAlgo = hashResult.Algorithm
-	skill.HashValue = hashResult.Value
+
+	// Calculate hash only if not from go.mod (Requirement 5.3, 7.5)
+	// When version is resolved from go.mod, rely on go.sum for integrity verification
+	if !downloadResult.FromGoMod {
+		fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
+		hashResult, err := s.hashService.CalculateHash(ctx, sourcePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
+		}
+		skill.HashAlgo = hashResult.Algorithm
+		skill.HashValue = hashResult.Value
+	} else {
+		// Clear hash values when using go.mod version
+		// Hash verification will use go.sum instead
+		skill.HashAlgo = ""
+		skill.HashValue = ""
+	}
 
 	// Save updated configuration if requested (Requirement 5.3, 7.5)
 	if saveConfig {

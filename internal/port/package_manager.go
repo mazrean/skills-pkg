@@ -58,6 +58,7 @@ func (s *Source) Validate() error {
 // It contains the local directory path and the actual version downloaded.
 // Requirements: 3.1, 4.1, 4.2
 type DownloadResult struct {
-	Path    string // Local directory path
-	Version string // Actual version downloaded
+	Path       string // Local directory path
+	Version    string // Actual version downloaded
+	FromGoMod  bool   // Whether the version was resolved from go.mod
 }

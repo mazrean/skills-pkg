@@ -18,6 +18,7 @@ import (
 
 	"github.com/mazrean/skills-pkg/internal/domain"
 	"github.com/mazrean/skills-pkg/internal/port"
+	"golang.org/x/mod/modfile"
 )
 
 const (
@@ -103,6 +104,53 @@ func NewGoMod() *GoMod {
 	}
 }
 
+// findGoMod searches for go.mod file starting from the current directory
+// and traversing up the directory tree.
+func findGoMod() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	for {
+		goModPath := filepath.Join(dir, "go.mod")
+		if _, err := os.Stat(goModPath); err == nil {
+			return goModPath, nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached the root directory
+			return "", fmt.Errorf("go.mod not found")
+		}
+		dir = parent
+	}
+}
+
+// getVersionFromGoMod reads go.mod file and returns the version of the specified module.
+// Returns empty string if the module is not found in go.mod.
+func getVersionFromGoMod(goModPath, modulePath string) (string, error) {
+	data, err := os.ReadFile(goModPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read go.mod: %w", err)
+	}
+
+	file, err := modfile.Parse(goModPath, data, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse go.mod: %w", err)
+	}
+
+	// Check require directives
+	for _, req := range file.Require {
+		if req.Mod.Path == modulePath {
+			return req.Mod.Version, nil
+		}
+	}
+
+	// Not found
+	return "", nil
+}
+
 // SourceType returns "go-module" to identify this adapter as a Go Module package manager.
 // Requirements: 11.2
 func (a *GoMod) SourceType() string {
@@ -130,7 +178,19 @@ func (a *GoMod) Download(ctx context.Context, source *port.Source, version strin
 
 	// Resolve version
 	resolvedVersion := version
-	if version == "" || version == "latest" {
+	fromGoMod := false
+	if version == "" {
+		// First, try to get version from go.mod for unspecified version
+		if goModPath, err := findGoMod(); err == nil {
+			if goModVersion, err := getVersionFromGoMod(goModPath, source.URL); err == nil && goModVersion != "" {
+				resolvedVersion = goModVersion
+				fromGoMod = true
+			}
+		}
+	}
+
+	// If still empty or explicitly "latest", fetch the latest version
+	if resolvedVersion == "" || resolvedVersion == "latest" {
 		latestVersion, err := a.fetchLatestVersionWithProxies(ctx, proxies, source.URL)
 		if err != nil {
 			return nil, err
@@ -153,8 +213,9 @@ func (a *GoMod) Download(ctx context.Context, source *port.Source, version strin
 	}
 
 	return &port.DownloadResult{
-		Path:    tempDir,
-		Version: resolvedVersion,
+		Path:      tempDir,
+		Version:   resolvedVersion,
+		FromGoMod: fromGoMod,
 	}, nil
 }
 
