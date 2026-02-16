@@ -1056,16 +1056,15 @@ func TestInstall_WithGoModVersion(t *testing.T) {
 		t.Fatal("Skill not found in config after installation")
 	}
 
-	// Verify hash values are NOT set when using go.mod version
+	// Verify version and hash values are NOT set when using go.mod version
+	// This ensures go.mod remains the source of truth
+	if installedSkill.Version != "" {
+		t.Errorf("Expected Version to be empty when using go.mod version, got %s", installedSkill.Version)
+	}
 	if installedSkill.HashAlgo != "" {
 		t.Errorf("Expected HashAlgo to be empty when using go.mod version, got %s", installedSkill.HashAlgo)
 	}
 	if installedSkill.HashValue != "" {
 		t.Errorf("Expected HashValue to be empty when using go.mod version, got %s", installedSkill.HashValue)
-	}
-
-	// Verify version was updated
-	if installedSkill.Version != "v1.2.3" {
-		t.Errorf("Expected Version to be v1.2.3, got %s", installedSkill.Version)
 	}
 }
