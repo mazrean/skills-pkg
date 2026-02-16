@@ -25,10 +25,10 @@ func TestSkill_Validate(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "valid go-module source skill",
+			name: "valid go-mod source skill",
 			skill: &domain.Skill{
 				Name:           "test-skill",
-				Source:         "go-module",
+				Source:         "go-mod",
 				URL:            "github.com/example/skill",
 				Version:        "v1.0.0",
 				HashAlgo:       "sha256",
@@ -37,10 +37,10 @@ func TestSkill_Validate(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "valid go-module source skill",
+			name: "valid go-mod source skill",
 			skill: &domain.Skill{
 				Name:           "test-skill",
-				Source:         "go-module",
+				Source:         "go-mod",
 				URL:            "github.com/example/skill",
 				Version:        "v1.0.0",
 				HashAlgo:       "sha256",
@@ -200,7 +200,7 @@ func TestConfig_Validate(t *testing.T) {
 			config: &domain.Config{
 				Skills: []*domain.Skill{
 					{Name: "skill1", Source: "git", URL: "url1", Version: "v1.0.0", HashAlgo: "sha256", HashValue: "abc"},
-					{Name: "skill1", Source: "go-module", URL: "url2", Version: "v1.0.0", HashAlgo: "sha256", HashValue: "def"},
+					{Name: "skill1", Source: "go-mod", URL: "url2", Version: "v1.0.0", HashAlgo: "sha256", HashValue: "def"},
 				},
 				InstallTargets: []string{"/path/to/dir"},
 			},

@@ -174,12 +174,12 @@ hash_value = "a1b2c3d4"
 
 [[skills]]
 name = "npm-skill"
-source = "go-module"
+source = "go-mod"
 url = "example-skill"
 version = "1.0.0"
 hash_algo = "sha256"
 hash_value = "e5f6g7h8"
-package_manager = "go-module"
+package_manager = "go-mod"
 `,
 			wantErr: nil,
 			validate: func(t *testing.T, config *domain.Config) {
@@ -227,7 +227,7 @@ package_manager = "go-module"
 				if skill2.Name != "npm-skill" {
 					t.Errorf("expected skill name 'npm-skill', got '%s'", skill2.Name)
 				}
-				if skill2.Source != "go-module" {
+				if skill2.Source != "go-mod" {
 					t.Errorf("expected source 'npm', got '%s'", skill2.Source)
 				}
 			},
@@ -486,7 +486,7 @@ func TestConfigManager_AddSkill(t *testing.T) {
 			},
 			skill: &domain.Skill{
 				Name:           "npm-skill",
-				Source:         "go-module",
+				Source:         "go-mod",
 				URL:            "example-package",
 				Version:        "1.0.0",
 				HashAlgo:       "sha256",
@@ -498,7 +498,7 @@ func TestConfigManager_AddSkill(t *testing.T) {
 					t.Fatalf("expected 1 skill, got %d", len(config.Skills))
 				}
 				skill := config.Skills[0]
-				if skill.Source != "go-module" {
+				if skill.Source != "go-mod" {
 					t.Errorf("expected source 'npm', got '%s'", skill.Source)
 				}
 			},
@@ -944,7 +944,7 @@ func TestConfigManager_ListSkills(t *testing.T) {
 					},
 					{
 						Name:           "skill-2",
-						Source:         "go-module",
+						Source:         "go-mod",
 						URL:            "npm-package",
 						Version:        "2.0.0",
 						HashAlgo:       "sha256",
@@ -963,7 +963,7 @@ func TestConfigManager_ListSkills(t *testing.T) {
 				if skills[1].Name != "skill-2" {
 					t.Errorf("expected second skill name 'skill-2', got '%s'", skills[1].Name)
 				}
-				if skills[1].Source != "go-module" {
+				if skills[1].Source != "go-mod" {
 					t.Errorf("expected source 'npm', got '%s'", skills[1].Source)
 				}
 			},

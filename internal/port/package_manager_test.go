@@ -46,7 +46,7 @@ func TestSourceValidation(t *testing.T) {
 		{
 			name: "valid_go_module_source",
 			source: &port.Source{
-				Type: "go-module",
+				Type: "go-mod",
 				URL:  "github.com/example/skill",
 			},
 			wantErr: false,

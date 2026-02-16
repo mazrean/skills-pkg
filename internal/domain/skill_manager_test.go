@@ -46,7 +46,7 @@ func TestNewSkillManager(t *testing.T) {
 	hashService := &mockHashService{}
 	packageManagers := []port.PackageManager{
 		&mockPackageManager{sourceType: "git"},
-		&mockPackageManager{sourceType: "go-module"},
+		&mockPackageManager{sourceType: "go-mod"},
 	}
 
 	skillManager := NewSkillManager(configManager, hashService, packageManagers)
@@ -71,13 +71,13 @@ func TestSelectPackageManager_ValidSourceType(t *testing.T) {
 		},
 		{
 			name:       "select npm package manager",
-			sourceType: "go-module",
-			wantType:   "go-module",
+			sourceType: "go-mod",
+			wantType:   "go-mod",
 		},
 		{
-			name:       "select go-module package manager",
-			sourceType: "go-module",
-			wantType:   "go-module",
+			name:       "select go-mod package manager",
+			sourceType: "go-mod",
+			wantType:   "go-mod",
 		},
 	}
 
@@ -87,8 +87,8 @@ func TestSelectPackageManager_ValidSourceType(t *testing.T) {
 			hashService := &mockHashService{}
 			packageManagers := []port.PackageManager{
 				&mockPackageManager{sourceType: "git"},
-				&mockPackageManager{sourceType: "go-module"},
-				&mockPackageManager{sourceType: "go-module"},
+				&mockPackageManager{sourceType: "go-mod"},
+				&mockPackageManager{sourceType: "go-mod"},
 			}
 
 			skillManager := NewSkillManager(configManager, hashService, packageManagers).(*skillManagerImpl)
@@ -112,7 +112,7 @@ func TestSelectPackageManager_UnsupportedSourceType(t *testing.T) {
 	hashService := &mockHashService{}
 	packageManagers := []port.PackageManager{
 		&mockPackageManager{sourceType: "git"},
-		&mockPackageManager{sourceType: "go-module"},
+		&mockPackageManager{sourceType: "go-mod"},
 	}
 
 	skillManager := NewSkillManager(configManager, hashService, packageManagers).(*skillManagerImpl)
@@ -545,7 +545,7 @@ func TestUpdate_SingleSkill(t *testing.T) {
 	// Add a skill
 	skill := &Skill{
 		Name:      "test-skill",
-		Source:    "go-module",
+		Source:    "go-mod",
 		URL:       "test-package",
 		Version:   "1.0.0",
 		HashAlgo:  "sha256",
@@ -557,7 +557,7 @@ func TestUpdate_SingleSkill(t *testing.T) {
 
 	// Create mock package manager that returns a new version
 	mockPM := &mockPackageManagerWithUpdate{
-		sourceType:    "go-module",
+		sourceType:    "go-mod",
 		latestVersion: "2.0.0",
 		downloadPath:  tempDir + "/download",
 	}
@@ -628,7 +628,7 @@ func TestUpdate_AllSkills(t *testing.T) {
 	skills := []*Skill{
 		{
 			Name:      "skill1",
-			Source:    "go-module",
+			Source:    "go-mod",
 			URL:       "package1",
 			Version:   "1.0.0",
 			HashAlgo:  "sha256",
@@ -651,7 +651,7 @@ func TestUpdate_AllSkills(t *testing.T) {
 
 	// Create mock package managers
 	npmPM := &mockPackageManagerWithUpdate{
-		sourceType:    "go-module",
+		sourceType:    "go-mod",
 		latestVersion: "2.0.0",
 		downloadPath:  tempDir + "/npm-download",
 	}
@@ -733,7 +733,7 @@ func TestUpdate_NetworkError(t *testing.T) {
 	// Add a skill
 	skill := &Skill{
 		Name:      "test-skill",
-		Source:    "go-module",
+		Source:    "go-mod",
 		URL:       "test-package",
 		Version:   "1.0.0",
 		HashAlgo:  "sha256",
@@ -745,7 +745,7 @@ func TestUpdate_NetworkError(t *testing.T) {
 
 	// Create mock package manager that returns a network error
 	mockPM := &mockPackageManagerWithError{
-		sourceType: "go-module",
+		sourceType: "go-mod",
 		err:        ErrNetworkFailure,
 	}
 
@@ -1009,7 +1009,7 @@ func TestInstall_WithGoModVersion(t *testing.T) {
 
 	// Mock package manager that returns FromGoMod=true
 	pm := &mockPackageManagerWithDownload{
-		sourceType: "go-module",
+		sourceType: "go-mod",
 		downloadResult: &port.DownloadResult{
 			Path:      downloadDir,
 			Version:   "v1.2.3",
@@ -1021,10 +1021,10 @@ func TestInstall_WithGoModVersion(t *testing.T) {
 	hashService := &mockHashService{}
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{pm})
 
-	// Create skill with go-module source
+	// Create skill with go-mod source
 	skill := &Skill{
 		Name:    "test-skill",
-		Source:  "go-module",
+		Source:  "go-mod",
 		URL:     "github.com/example/test-skill",
 		Version: "",
 		SubDir:  "skills/test-skill",

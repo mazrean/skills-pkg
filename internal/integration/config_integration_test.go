@@ -198,7 +198,7 @@ func TestSkillOperationIntegration(t *testing.T) {
 					},
 					{
 						Name:      "npm-skill",
-						Source:    "go-module",
+						Source:    "go-mod",
 						URL:       "example-npm-skill",
 						Version:   "1.0.0",
 						HashAlgo:  "sha256",

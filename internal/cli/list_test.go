@@ -47,23 +47,23 @@ func TestListCmd_Run(t *testing.T) {
 					t.Fatalf("failed to add git skill: %v", err)
 				}
 
-				// Add go-module skill
+				// Add go-mod skill
 				goModSkill := &domain.Skill{
-					Name:      "go-module-skill",
-					Source:    "go-module",
+					Name:      "go-mod-skill",
+					Source:    "go-mod",
 					URL:       "github.com/example/skill",
 					Version:   "v2.0.0",
 					HashAlgo:  "sha256",
 					HashValue: "def456",
 				}
 				if err := cm.AddSkill(context.Background(), goModSkill); err != nil {
-					t.Fatalf("failed to add go-module skill: %v", err)
+					t.Fatalf("failed to add go-mod skill: %v", err)
 				}
 
-				// Add go-module skill
+				// Add go-mod skill
 				goSkill := &domain.Skill{
 					Name:      "go-skill",
-					Source:    "go-module",
+					Source:    "go-mod",
 					URL:       "github.com/example/go-skill",
 					Version:   "v0.5.0",
 					HashAlgo:  "sha256",
@@ -83,8 +83,8 @@ func TestListCmd_Run(t *testing.T) {
 				if !strings.Contains(output, "git-skill") {
 					t.Errorf("output should contain 'git-skill', got: %s", output)
 				}
-				if !strings.Contains(output, "go-module-skill") {
-					t.Errorf("output should contain 'go-module-skill', got: %s", output)
+				if !strings.Contains(output, "go-mod-skill") {
+					t.Errorf("output should contain 'go-mod-skill', got: %s", output)
 				}
 				if !strings.Contains(output, "go-skill") {
 					t.Errorf("output should contain 'go-skill', got: %s", output)
@@ -94,11 +94,11 @@ func TestListCmd_Run(t *testing.T) {
 				if !strings.Contains(output, "git") {
 					t.Errorf("output should contain source 'git', got: %s", output)
 				}
-				if !strings.Contains(output, "go-module") {
-					t.Errorf("output should contain source 'go-module', got: %s", output)
+				if !strings.Contains(output, "go-mod") {
+					t.Errorf("output should contain source 'go-mod', got: %s", output)
 				}
-				if !strings.Contains(output, "go-module") {
-					t.Errorf("output should contain source 'go-module', got: %s", output)
+				if !strings.Contains(output, "go-mod") {
+					t.Errorf("output should contain source 'go-mod', got: %s", output)
 				}
 
 				// Check that versions are present (requirement 8.2)

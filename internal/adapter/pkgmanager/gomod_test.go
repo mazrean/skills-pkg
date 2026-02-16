@@ -16,8 +16,8 @@ func TestGoMod_SourceType(t *testing.T) {
 		want string
 	}{
 		{
-			name: "should return go-module",
-			want: "go-module",
+			name: "should return go-mod",
+			want: "go-mod",
 		},
 	}
 
@@ -53,7 +53,7 @@ func TestGoMod_Download_InvalidSource(t *testing.T) {
 		{
 			name: "empty URL",
 			source: &port.Source{
-				Type: "go-module",
+				Type: "go-mod",
 				URL:  "",
 			},
 			version: "v0.1.0",
@@ -135,7 +135,7 @@ func TestGoMod_Download_ModuleErrors(t *testing.T) {
 			ctx := context.Background()
 
 			source := &port.Source{
-				Type: "go-module",
+				Type: "go-mod",
 				URL:  tt.url,
 			}
 
@@ -209,7 +209,7 @@ func TestGoMod_GetLatestVersion_InvalidSource(t *testing.T) {
 		{
 			name: "empty URL",
 			source: &port.Source{
-				Type: "go-module",
+				Type: "go-mod",
 				URL:  "",
 			},
 			wantErr: true,
@@ -276,7 +276,7 @@ func TestGoMod_GetLatestVersion_ModuleErrors(t *testing.T) {
 			ctx := context.Background()
 
 			source := &port.Source{
-				Type: "go-module",
+				Type: "go-mod",
 				URL:  tt.url,
 			}
 
@@ -612,7 +612,7 @@ require (
 	ctx := context.Background()
 
 	source := &port.Source{
-		Type: "go-module",
+		Type: "go-mod",
 		URL:  "golang.org/x/exp",
 	}
 
@@ -675,7 +675,7 @@ require (
 	ctx := context.Background()
 
 	source := &port.Source{
-		Type: "go-module",
+		Type: "go-mod",
 		URL:  "golang.org/x/exp",
 	}
 
