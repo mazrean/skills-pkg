@@ -151,10 +151,10 @@ func getVersionFromGoMod(goModPath, modulePath string) (string, error) {
 	return "", nil
 }
 
-// SourceType returns "go-module" to identify this adapter as a Go Module package manager.
+// SourceType returns "go-mod" to identify this adapter as a Go Module package manager.
 // Requirements: 11.2
 func (a *GoMod) SourceType() string {
-	return "go-module"
+	return "go-mod"
 }
 
 // Download downloads a skill from the Go Module proxy.
@@ -166,8 +166,8 @@ func (a *GoMod) Download(ctx context.Context, source *port.Source, version strin
 		return nil, fmt.Errorf("invalid source configuration: %w", err)
 	}
 
-	if source.Type != "go-module" {
-		return nil, fmt.Errorf("source type must be 'go-module', got '%s'", source.Type)
+	if source.Type != "go-mod" {
+		return nil, fmt.Errorf("source type must be 'go-mod', got '%s'", source.Type)
 	}
 
 	// Get proxies from source options if provided, otherwise use configured proxies
@@ -227,8 +227,8 @@ func (a *GoMod) GetLatestVersion(ctx context.Context, source *port.Source) (stri
 		return "", fmt.Errorf("invalid source configuration: %w", err)
 	}
 
-	if source.Type != "go-module" {
-		return "", fmt.Errorf("source type must be 'go-module', got '%s'", source.Type)
+	if source.Type != "go-mod" {
+		return "", fmt.Errorf("source type must be 'go-mod', got '%s'", source.Type)
 	}
 
 	// Get proxies from source options if provided, otherwise use configured proxies

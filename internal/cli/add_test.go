@@ -118,9 +118,9 @@ func TestAddCmd_Run(t *testing.T) {
 			},
 		},
 		{
-			name:      "success: add go-module skill",
+			name:      "success: add go-mod skill",
 			skillName: "go-skill",
-			source:    "go-module",
+			source:    "go-mod",
 			url:       "github.com/example/skill",
 			version:   "v1.0.0",
 			setupFunc: setupTestConfig,
@@ -141,8 +141,8 @@ func TestAddCmd_Run(t *testing.T) {
 				if skill.Name != "go-skill" {
 					t.Errorf("expected name 'go-skill', got %s", skill.Name)
 				}
-				if skill.Source != "go-module" {
-					t.Errorf("expected source 'go-module', got %s", skill.Source)
+				if skill.Source != "go-mod" {
+					t.Errorf("expected source 'go-mod', got %s", skill.Source)
 				}
 			},
 		},
@@ -209,7 +209,7 @@ func TestAddCmd_Run(t *testing.T) {
 		{
 			name:      "success: add skill with default subdirectory",
 			skillName: "default-skill",
-			source:    "go-module",
+			source:    "go-mod",
 			url:       "github.com/example/skills",
 			version:   "v1.0.0",
 			subDir:    "", // Empty means use default
@@ -239,7 +239,7 @@ func TestAddCmd_Run(t *testing.T) {
 		{
 			name:      "success: add skill with custom subdirectory",
 			skillName: "custom-skill",
-			source:    "go-module",
+			source:    "go-mod",
 			url:       "github.com/example/monorepo",
 			version:   "v1.0.0",
 			subDir:    "packages/agents/custom-skill",
@@ -300,7 +300,7 @@ func TestAddCmd_Run(t *testing.T) {
 			hashService := &mockHashService{}
 			packageManagers := []port.PackageManager{
 				&mockPackageManager{sourceType: "git", tmpDir: tmpDir},
-				&mockPackageManager{sourceType: "go-module", tmpDir: tmpDir},
+				&mockPackageManager{sourceType: "go-mod", tmpDir: tmpDir},
 			}
 			err := cmd.runWithDeps(configPath, false, hashService, packageManagers) // non-verbose mode
 

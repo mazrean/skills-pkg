@@ -16,7 +16,7 @@ import (
 // AddCmd represents the add command
 type AddCmd struct {
 	Name    string `arg:"" help:"Skill name"`
-	Source  string `default:"git" enum:"git,go-module" help:"Source type"`
+	Source  string `default:"git" enum:"git,go-mod" help:"Source type"`
 	URL     string `required:"" help:"Source URL (Git URL or Go module path)"`
 	Version string `default:"" help:"Version (tag, commit hash, or semantic version; defaults to version from go.mod for go-module, otherwise latest)"`
 	SubDir  string `help:"Subdirectory within the source to extract (default: skills/{name})"`
@@ -112,7 +112,7 @@ func (c *AddCmd) runWithDeps(configPath string, verbose bool, hashService port.H
 		if errors.Is(err, domain.ErrInvalidSource) {
 			// Invalid source type
 			logger.Error("Invalid source type '%s'", c.Source)
-			logger.Error("Supported source types: git, go-module")
+			logger.Error("Supported source types: git, go-mod")
 			return err
 		}
 
