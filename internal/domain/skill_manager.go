@@ -310,12 +310,12 @@ func (s *skillManagerImpl) InstallSingleSkill(ctx context.Context, config *Confi
 		fmt.Printf("Using subdirectory '%s' from downloaded content...\n", skill.SubDir)
 	}
 
-	// Update version
-	skill.Version = downloadResult.Version
-
 	// Calculate hash only if not from go.mod (Requirement 5.3)
 	// When version is resolved from go.mod, rely on go.sum for integrity verification
 	if !downloadResult.FromGoMod {
+		// Update version
+		skill.Version = downloadResult.Version
+
 		fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
 		hashResult, err := s.hashService.CalculateHash(ctx, sourcePath)
 		if err != nil {
@@ -324,8 +324,10 @@ func (s *skillManagerImpl) InstallSingleSkill(ctx context.Context, config *Confi
 		skill.HashAlgo = hashResult.Algorithm
 		skill.HashValue = hashResult.Value
 	} else {
-		// Clear hash values when using go.mod version
-		// Hash verification will use go.sum instead
+		// Clear version and hash values when using go.mod version
+		// Version and hash verification will use go.mod/go.sum instead
+		// This ensures go.mod remains the source of truth
+		skill.Version = ""
 		skill.HashAlgo = ""
 		skill.HashValue = ""
 	}
@@ -476,12 +478,12 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		fmt.Printf("Using subdirectory '%s' from downloaded content...\n", skill.SubDir)
 	}
 
-	// Update version
-	skill.Version = downloadResult.Version
-
 	// Calculate hash only if not from go.mod (Requirement 5.3, 7.5)
 	// When version is resolved from go.mod, rely on go.sum for integrity verification
 	if !downloadResult.FromGoMod {
+		// Update version
+		skill.Version = downloadResult.Version
+
 		fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
 		hashResult, err := s.hashService.CalculateHash(ctx, sourcePath)
 		if err != nil {
@@ -490,8 +492,10 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		skill.HashAlgo = hashResult.Algorithm
 		skill.HashValue = hashResult.Value
 	} else {
-		// Clear hash values when using go.mod version
-		// Hash verification will use go.sum instead
+		// Clear version and hash values when using go.mod version
+		// Version and hash verification will use go.mod/go.sum instead
+		// This ensures go.mod remains the source of truth
+		skill.Version = ""
 		skill.HashAlgo = ""
 		skill.HashValue = ""
 	}

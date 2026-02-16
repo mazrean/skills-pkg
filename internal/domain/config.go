@@ -15,12 +15,12 @@ type Config struct {
 // Requirements: 2.2, 2.3, 2.4, 5.2, 11.4
 type Skill struct {
 	Name      string `toml:"name"`
-	Source    string `toml:"source"`           // "git", "go-mod"
-	URL       string `toml:"url"`              // Git URL, Go module path
-	Version   string `toml:"version"`          // Tag, commit hash, or semantic version
-	HashAlgo  string `toml:"hash_algo"`        // "sha256"
-	HashValue string `toml:"hash_value"`       // Hex-encoded hash
-	SubDir    string `toml:"subdir,omitempty"` // Subdirectory within the downloaded source (e.g., "skills/my-agent")
+	Source    string `toml:"source"`                 // "git", "go-mod"
+	URL       string `toml:"url"`                    // Git URL, Go module path
+	Version   string `toml:"version,omitempty"`      // Tag, commit hash, or semantic version
+	HashAlgo  string `toml:"hash_algo,omitempty"`    // "sha256"
+	HashValue string `toml:"hash_value,omitempty"`   // Hex-encoded hash
+	SubDir    string `toml:"subdir,omitempty"`       // Subdirectory within the downloaded source (e.g., "skills/my-agent")
 }
 
 // Validate validates the skill configuration.

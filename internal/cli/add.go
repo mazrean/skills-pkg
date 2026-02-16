@@ -18,7 +18,7 @@ type AddCmd struct {
 	Name    string `arg:"" help:"Skill name"`
 	Source  string `default:"git" enum:"git,go-mod" help:"Source type"`
 	URL     string `required:"" help:"Source URL (Git URL or Go module path)"`
-	Version string `default:"latest" help:"Version (tag, commit hash, or semantic version)"`
+	Version string `default:"" help:"Version (tag, commit hash, or semantic version; defaults to version from go.mod for go-module, otherwise latest)"`
 	SubDir  string `help:"Subdirectory within the source to extract (default: skills/{name})"`
 }
 
