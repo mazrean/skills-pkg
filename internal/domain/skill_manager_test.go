@@ -1,13 +1,32 @@
 package domain
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/mazrean/skills-pkg/internal/port"
 )
+
+// captureStdout captures output written to os.Stdout during the execution of f.
+func captureStdout(f func()) string {
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	f()
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r) //nolint:errcheck
+	return buf.String()
+}
 
 // Mock PackageManager for testing
 type mockPackageManager struct {
@@ -554,15 +573,22 @@ func TestUpdate_SingleSkill(t *testing.T) {
 	hashService := &mockHashService{}
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{mockPM})
 
-	// Update the skill
-	result, err := skillManager.Update(ctx, "test-skill")
+	// Update the skill using new signature
+	results, err := skillManager.Update(ctx, []string{"test-skill"}, "")
 	if err != nil {
 		t.Fatalf("Update returned error: %v", err)
 	}
 
 	// Verify result
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+	result := results[0]
 	if result == nil {
 		t.Fatal("Update returned nil result")
+	}
+	if result.Err != nil {
+		t.Fatalf("Update result has unexpected error: %v", result.Err)
 	}
 	if result.SkillName != "test-skill" {
 		t.Errorf("Expected skill name 'test-skill', got '%s'", result.SkillName)
@@ -653,15 +679,22 @@ func TestUpdate_AllSkills(t *testing.T) {
 	hashService := &mockHashService{}
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{npmPM, gitPM})
 
-	// Update all skills (empty skillName)
-	result, err := skillManager.Update(ctx, "")
+	// Update all skills using new signature (empty skillNames, empty sourceFilter)
+	results, err := skillManager.Update(ctx, nil, "")
 	if err != nil {
 		t.Fatalf("Update returned error: %v", err)
 	}
 
-	// For now, just verify no error when updating all skills
-	// Full implementation will return results for all skills
-	_ = result
+	// Verify 2 results returned
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+	// All results should succeed
+	for _, result := range results {
+		if result.Err != nil {
+			t.Errorf("Unexpected error in result for '%s': %v", result.SkillName, result.Err)
+		}
+	}
 }
 
 // TestUpdate_SkillNotFound tests error handling when skill is not found.
@@ -684,14 +717,21 @@ func TestUpdate_SkillNotFound(t *testing.T) {
 	hashService := &mockHashService{}
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
 
-	// Try to update non-existent skill
-	_, err := skillManager.Update(ctx, "non-existent-skill")
-	if err == nil {
-		t.Fatal("Expected error for non-existent skill, got nil")
+	// Try to update non-existent skill using new signature
+	results, err := skillManager.Update(ctx, []string{"non-existent-skill"}, "")
+	if err != nil {
+		t.Fatalf("Unexpected critical error: %v", err)
 	}
 
-	if !errors.Is(err, ErrSkillNotFound) {
-		t.Errorf("Expected ErrSkillNotFound, got %v", err)
+	// ErrSkillNotFound should be in UpdateResult.Err
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+	if results[0].Err == nil {
+		t.Fatal("Expected error in result for non-existent skill, got nil")
+	}
+	if !errors.Is(results[0].Err, ErrSkillNotFound) {
+		t.Errorf("Expected ErrSkillNotFound in result, got %v", results[0].Err)
 	}
 }
 
@@ -733,15 +773,21 @@ func TestUpdate_NetworkError(t *testing.T) {
 	hashService := &mockHashService{}
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{mockPM})
 
-	// Try to update the skill
-	_, err := skillManager.Update(ctx, "test-skill")
-	if err == nil {
-		t.Fatal("Expected error for network failure, got nil")
+	// Try to update the skill using new signature
+	results, err := skillManager.Update(ctx, []string{"test-skill"}, "")
+	if err != nil {
+		t.Fatalf("Unexpected critical error: %v", err)
 	}
 
-	// Should be a network error
-	if !IsNetworkError(err) {
-		t.Errorf("Expected network error, got %v", err)
+	// Network error should be in UpdateResult.Err
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+	if results[0].Err == nil {
+		t.Fatal("Expected error in result for network failure, got nil")
+	}
+	if !IsNetworkError(results[0].Err) {
+		t.Errorf("Expected network error in result, got %v", results[0].Err)
 	}
 }
 
@@ -1041,5 +1087,664 @@ func TestInstall_WithGoModVersion(t *testing.T) {
 	}
 	if installedSkill.HashValue != "" {
 		t.Errorf("Expected HashValue to be empty when using go.mod version, got %s", installedSkill.HashValue)
+	}
+}
+
+// TestUpdateResult_SkippedAndErrFields tests that UpdateResult has Skipped and Err fields.
+// Requirements: 1.5, 3.3, 7.3
+func TestUpdateResult_SkippedAndErrFields(t *testing.T) {
+	// Test Skipped field
+	skippedResult := &UpdateResult{
+		SkillName:  "test-skill",
+		OldVersion: "1.0.0",
+		NewVersion: "1.0.0",
+		Skipped:    true,
+	}
+	if !skippedResult.Skipped {
+		t.Error("Expected Skipped to be true")
+	}
+
+	// Test Err field
+	testErr := errors.New("test error")
+	errorResult := &UpdateResult{
+		SkillName: "test-skill",
+		Err:       testErr,
+	}
+	if errorResult.Err == nil {
+		t.Error("Expected Err to be set")
+	}
+	if !errors.Is(errorResult.Err, testErr) {
+		t.Errorf("Expected Err to be testErr, got %v", errorResult.Err)
+	}
+
+	// Normal result without Skipped or Err should have zero values
+	normalResult := &UpdateResult{
+		SkillName:  "test-skill",
+		OldVersion: "1.0.0",
+		NewVersion: "2.0.0",
+	}
+	if normalResult.Skipped {
+		t.Error("Expected Skipped to be false for normal result")
+	}
+	if normalResult.Err != nil {
+		t.Error("Expected Err to be nil for normal result")
+	}
+}
+
+// mockPackageManagerSkipVersion is a mock that tracks whether Download was called.
+type mockPackageManagerSkipVersion struct {
+	sourceType     string
+	latestVersion  string
+	downloadCalled bool
+}
+
+func (m *mockPackageManagerSkipVersion) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
+	m.downloadCalled = true
+	return &port.DownloadResult{
+		Path:    "",
+		Version: version,
+	}, nil
+}
+
+func (m *mockPackageManagerSkipVersion) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
+	return m.latestVersion, nil
+}
+
+func (m *mockPackageManagerSkipVersion) SourceType() string {
+	return m.sourceType
+}
+
+// TestUpdateSingleSkill_SkipWhenVersionMatches tests that updateSingleSkill returns
+// UpdateResult{Skipped: true} and does NOT call Download when the latest version
+// matches the current skill version.
+// Requirements: 3.3
+func TestUpdateSingleSkill_SkipWhenVersionMatches(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	config, err := configManager.Load(ctx)
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	skill := &Skill{
+		Name:      "test-skill",
+		Source:    "go-mod",
+		URL:       "test-package",
+		Version:   "1.0.0",
+		HashValue: "existingHash",
+	}
+
+	// Mock returns the SAME version as skill.Version (already at latest)
+	mockPM := &mockPackageManagerSkipVersion{
+		sourceType:    "go-mod",
+		latestVersion: "1.0.0",
+	}
+
+	sm := &skillManagerImpl{
+		configManager:   configManager,
+		hashService:     &mockHashService{},
+		packageManagers: []port.PackageManager{mockPM},
+	}
+
+	result := sm.updateSingleSkill(ctx, config, skill, false)
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+	if !result.Skipped {
+		t.Error("Expected Skipped to be true when latest version matches current version")
+	}
+	if result.Err != nil {
+		t.Errorf("Expected no error, got: %v", result.Err)
+	}
+	if result.SkillName != "test-skill" {
+		t.Errorf("Expected SkillName 'test-skill', got '%s'", result.SkillName)
+	}
+	if result.OldVersion != "1.0.0" {
+		t.Errorf("Expected OldVersion '1.0.0', got '%s'", result.OldVersion)
+	}
+	if mockPM.downloadCalled {
+		t.Error("Expected Download NOT to be called when version matches (should be skipped)")
+	}
+}
+
+// TestUpdateSingleSkill_ErrorStoredInResult verifies that updateSingleSkill stores
+// errors in UpdateResult.Err (with SkillName and OldVersion set) instead of returning them.
+func TestUpdateSingleSkill_ErrorStoredInResult(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	config, err := configManager.Load(ctx)
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	skill := &Skill{
+		Name:      "test-skill",
+		Source:    "go-mod",
+		URL:       "test-package",
+		Version:   "1.0.0",
+		HashValue: "oldHash123",
+	}
+
+	// Mock that returns a network error on GetLatestVersion
+	mockPM := &mockPackageManagerWithError{
+		sourceType: "go-mod",
+		err:        ErrNetworkFailure,
+	}
+
+	sm := &skillManagerImpl{
+		configManager:   configManager,
+		hashService:     &mockHashService{},
+		packageManagers: []port.PackageManager{mockPM},
+	}
+
+	// updateSingleSkill must return *UpdateResult only; error stored in Err field
+	result := sm.updateSingleSkill(ctx, config, skill, false)
+
+	if result == nil {
+		t.Fatal("Expected non-nil result")
+	}
+	if result.Err == nil {
+		t.Error("Expected result.Err to be set on network failure")
+	}
+	if !IsNetworkError(result.Err) {
+		t.Errorf("Expected network error in result.Err, got %v", result.Err)
+	}
+	if result.SkillName != "test-skill" {
+		t.Errorf("Expected SkillName 'test-skill', got '%s'", result.SkillName)
+	}
+	if result.OldVersion != "1.0.0" {
+		t.Errorf("Expected OldVersion '1.0.0', got '%s'", result.OldVersion)
+	}
+}
+
+// TestUpdate_SourceFilter_FiltersBySourceType tests that when sourceFilter is set
+// and skillNames is empty, only skills matching the sourceType are updated.
+// Requirements: 1.1, 1.2, 2.1
+func TestUpdate_SourceFilter_FiltersBySourceType(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// Add skills with different source types
+	gitSkill := &Skill{
+		Name:    "git-skill",
+		Source:  "git",
+		URL:     "https://github.com/example/skill.git",
+		Version: "v1.0.0",
+	}
+	gomodSkill := &Skill{
+		Name:    "gomod-skill",
+		Source:  "go-mod",
+		URL:     "github.com/example/skill",
+		Version: "1.0.0",
+	}
+	for _, skill := range []*Skill{gitSkill, gomodSkill} {
+		if err := configManager.AddSkill(ctx, skill); err != nil {
+			t.Fatalf("Failed to add skill: %v", err)
+		}
+	}
+
+	// Create download directory
+	downloadDir := tempDir + "/download"
+	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
+		t.Fatalf("Failed to create download dir: %v", err)
+	}
+
+	// Track which skills were updated
+	type callRecord struct {
+		sourceType string
+		url        string
+	}
+	var calls []callRecord
+
+	mockGitPM := &mockPackageManagerTracking{
+		sourceType:    "git",
+		latestVersion: "v2.0.0",
+		downloadPath:  downloadDir,
+		onGetLatest: func(url string) {
+			calls = append(calls, callRecord{sourceType: "git", url: url})
+		},
+	}
+
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{mockGitPM})
+
+	// Update with "git" source filter and empty skillNames
+	results, err := skillManager.Update(ctx, nil, "git")
+	if err != nil {
+		t.Fatalf("Unexpected critical error: %v", err)
+	}
+
+	// Should return only 1 result (git-skill only)
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result (only git skill), got %d", len(results))
+	}
+	if results[0].SkillName != "git-skill" {
+		t.Errorf("Expected git-skill in results, got %s", results[0].SkillName)
+	}
+	if results[0].Err != nil {
+		t.Errorf("Expected no error for git-skill, got %v", results[0].Err)
+	}
+	// Only git-skill's GetLatestVersion should have been called
+	if len(calls) != 1 {
+		t.Errorf("Expected 1 GetLatestVersion call (for git-skill only), got %d", len(calls))
+	}
+}
+
+// mockPackageManagerTracking is a mock that records GetLatestVersion calls.
+type mockPackageManagerTracking struct {
+	sourceType    string
+	latestVersion string
+	downloadPath  string
+	onGetLatest   func(url string)
+}
+
+func (m *mockPackageManagerTracking) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
+	return &port.DownloadResult{
+		Path:      m.downloadPath,
+		Version:   version,
+		FromGoMod: false,
+	}, nil
+}
+
+func (m *mockPackageManagerTracking) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
+	if m.onGetLatest != nil {
+		m.onGetLatest(source.URL)
+	}
+	return m.latestVersion, nil
+}
+
+func (m *mockPackageManagerTracking) SourceType() string {
+	return m.sourceType
+}
+
+// TestUpdate_SourceFilter_NoMatchingSkills tests that when sourceFilter matches no skills,
+// empty results are returned with no error.
+// Requirements: 2.2
+func TestUpdate_SourceFilter_NoMatchingSkills(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// Add only go-mod skills
+	gomodSkill := &Skill{
+		Name:    "gomod-skill",
+		Source:  "go-mod",
+		URL:     "github.com/example/skill",
+		Version: "1.0.0",
+	}
+	if err := configManager.AddSkill(ctx, gomodSkill); err != nil {
+		t.Fatalf("Failed to add skill: %v", err)
+	}
+
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
+
+	// Filter by "git" but no git skills exist
+	results, err := skillManager.Update(ctx, nil, "git")
+	if err != nil {
+		t.Fatalf("Expected no critical error for empty filter result, got: %v", err)
+	}
+
+	// Should return empty results
+	if len(results) != 0 {
+		t.Errorf("Expected 0 results when no skills match source filter, got %d", len(results))
+	}
+}
+
+// TestUpdate_SourceMismatch tests that when skillNames contains a skill with a source
+// that doesn't match sourceFilter, ErrSourceMismatch is stored in UpdateResult.Err.
+// Requirements: 1.4, 1.5
+func TestUpdate_SourceMismatch(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// Add a go-mod skill
+	skill := &Skill{
+		Name:    "gomod-skill",
+		Source:  "go-mod",
+		URL:     "github.com/example/skill",
+		Version: "1.0.0",
+	}
+	if err := configManager.AddSkill(ctx, skill); err != nil {
+		t.Fatalf("Failed to add skill: %v", err)
+	}
+
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
+
+	// Try to update gomod-skill with --source git (mismatch)
+	results, err := skillManager.Update(ctx, []string{"gomod-skill"}, "git")
+	if err != nil {
+		t.Fatalf("Expected no critical error, got: %v", err)
+	}
+
+	// Should return 1 result with ErrSourceMismatch
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+	if results[0].Err == nil {
+		t.Fatal("Expected ErrSourceMismatch in result.Err, got nil")
+	}
+	if !errors.Is(results[0].Err, ErrSourceMismatch) {
+		t.Errorf("Expected ErrSourceMismatch, got: %v", results[0].Err)
+	}
+	if results[0].SkillName != "gomod-skill" {
+		t.Errorf("Expected SkillName 'gomod-skill', got '%s'", results[0].SkillName)
+	}
+}
+
+// TestUpdate_SkillNameWithMatchingSource tests that when skillNames has a skill
+// with a matching source filter, the skill is updated normally.
+// Requirements: 1.4
+func TestUpdate_SkillNameWithMatchingSource(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// Add a git skill
+	skill := &Skill{
+		Name:    "git-skill",
+		Source:  "git",
+		URL:     "https://github.com/example/skill.git",
+		Version: "v1.0.0",
+	}
+	if err := configManager.AddSkill(ctx, skill); err != nil {
+		t.Fatalf("Failed to add skill: %v", err)
+	}
+
+	downloadDir := tempDir + "/download"
+	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
+		t.Fatalf("Failed to create download dir: %v", err)
+	}
+
+	gitPM := &mockPackageManagerWithUpdate{
+		sourceType:    "git",
+		latestVersion: "v2.0.0",
+		downloadPath:  downloadDir,
+	}
+
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{gitPM})
+
+	// Update git-skill with matching source filter
+	results, err := skillManager.Update(ctx, []string{"git-skill"}, "git")
+	if err != nil {
+		t.Fatalf("Unexpected critical error: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+	if results[0].Err != nil {
+		t.Errorf("Expected no error for matching source, got: %v", results[0].Err)
+	}
+	if results[0].SkillName != "git-skill" {
+		t.Errorf("Expected 'git-skill', got '%s'", results[0].SkillName)
+	}
+	if results[0].NewVersion != "v2.0.0" {
+		t.Errorf("Expected new version 'v2.0.0', got '%s'", results[0].NewVersion)
+	}
+}
+
+// TestUpdate_PrintsUpdatingBanner verifies that Update prints
+// "Updating N skill(s): [names]" to stdout before processing.
+// Requirements: 6.1
+func TestUpdate_PrintsUpdatingBanner(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	downloadDir := tempDir + "/download"
+	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
+		t.Fatalf("Failed to create download dir: %v", err)
+	}
+
+	// Add two git skills
+	for _, name := range []string{"skill-a", "skill-b"} {
+		s := &Skill{
+			Name:    name,
+			Source:  "git",
+			URL:     "https://github.com/example/" + name + ".git",
+			Version: "v1.0.0",
+		}
+		if err := configManager.AddSkill(ctx, s); err != nil {
+			t.Fatalf("Failed to add skill: %v", err)
+		}
+	}
+
+	pm := &mockPackageManagerWithUpdate{
+		sourceType:    "git",
+		latestVersion: "v1.0.0", // same version → skipped, but banner should still print
+		downloadPath:  downloadDir,
+	}
+
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{pm})
+
+	var output string
+	output = captureStdout(func() {
+		_, _ = skillManager.Update(ctx, nil, "")
+	})
+
+	if !strings.Contains(output, "Updating 2 skill(s):") {
+		t.Errorf("Expected stdout to contain 'Updating 2 skill(s):' but got:\n%s", output)
+	}
+	if !strings.Contains(output, "skill-a") {
+		t.Errorf("Expected stdout to contain 'skill-a' but got:\n%s", output)
+	}
+	if !strings.Contains(output, "skill-b") {
+		t.Errorf("Expected stdout to contain 'skill-b' but got:\n%s", output)
+	}
+}
+
+// TestUpdate_NoSkillsForSourcePrintsMessage verifies that when sourceFilter is given
+// but no matching skills exist, "No skills found for source '%s'." is printed and
+// the method returns empty results with no error.
+// Requirements: 2.2, 6.1
+func TestUpdate_NoSkillsForSourcePrintsMessage(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// Add only go-mod skill (no git skills)
+	s := &Skill{
+		Name:    "gomod-skill",
+		Source:  "go-mod",
+		URL:     "github.com/example/skill",
+		Version: "1.0.0",
+	}
+	if err := configManager.AddSkill(ctx, s); err != nil {
+		t.Fatalf("Failed to add skill: %v", err)
+	}
+
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
+
+	var (
+		results []*UpdateResult
+		err     error
+		output  string
+	)
+	output = captureStdout(func() {
+		results, err = skillManager.Update(ctx, nil, "git")
+	})
+
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("Expected 0 results, got %d", len(results))
+	}
+	expected := "No skills found for source 'git'."
+	if !strings.Contains(output, expected) {
+		t.Errorf("Expected stdout to contain %q but got:\n%s", expected, output)
+	}
+}
+
+// mockPackageManagerMixed is a mock that fails for a specific skill URL and succeeds for others.
+type mockPackageManagerMixed struct {
+	sourceType    string
+	latestVersion string
+	downloadPath  string
+	failURL       string
+	failErr       error
+}
+
+func (m *mockPackageManagerMixed) Download(ctx context.Context, source *port.Source, version string) (*port.DownloadResult, error) {
+	if source.URL == m.failURL {
+		return nil, m.failErr
+	}
+	return &port.DownloadResult{
+		Path:      m.downloadPath,
+		Version:   version,
+		FromGoMod: false,
+	}, nil
+}
+
+func (m *mockPackageManagerMixed) GetLatestVersion(ctx context.Context, source *port.Source) (string, error) {
+	if source.URL == m.failURL {
+		return "", m.failErr
+	}
+	return m.latestVersion, nil
+}
+
+func (m *mockPackageManagerMixed) SourceType() string {
+	return m.sourceType
+}
+
+// TestUpdate_IndividualErrorContinuation tests that when one skill fails,
+// the other skills continue to be updated and their results are still returned.
+// Requirements: 7.3
+func TestUpdate_IndividualErrorContinuation(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// Add two git skills
+	skillA := &Skill{
+		Name:    "skill-a",
+		Source:  "git",
+		URL:     "https://github.com/example/skill-a.git",
+		Version: "v1.0.0",
+	}
+	skillB := &Skill{
+		Name:    "skill-b",
+		Source:  "git",
+		URL:     "https://github.com/example/skill-b.git",
+		Version: "v1.0.0",
+	}
+	for _, skill := range []*Skill{skillA, skillB} {
+		if err := configManager.AddSkill(ctx, skill); err != nil {
+			t.Fatalf("Failed to add skill: %v", err)
+		}
+	}
+
+	downloadDir := tempDir + "/download"
+	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
+		t.Fatalf("Failed to create download dir: %v", err)
+	}
+
+	// skill-a fails with a network error; skill-b succeeds
+	pm := &mockPackageManagerMixed{
+		sourceType:    "git",
+		latestVersion: "v2.0.0",
+		downloadPath:  downloadDir,
+		failURL:       "https://github.com/example/skill-a.git",
+		failErr:       ErrNetworkFailure,
+	}
+
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{pm})
+
+	results, err := skillManager.Update(ctx, nil, "")
+	if err != nil {
+		t.Fatalf("Expected no critical error, got: %v", err)
+	}
+
+	// Should return 2 results (both skills processed)
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results (both skills processed), got %d", len(results))
+	}
+
+	// Build a map for easier assertion
+	resultMap := make(map[string]*UpdateResult)
+	for _, r := range results {
+		resultMap[r.SkillName] = r
+	}
+
+	// skill-a should have a network error in Err
+	if resultA, ok := resultMap["skill-a"]; !ok {
+		t.Error("Expected result for skill-a")
+	} else {
+		if resultA.Err == nil {
+			t.Error("Expected error for skill-a, got nil")
+		}
+		if !IsNetworkError(resultA.Err) {
+			t.Errorf("Expected network error for skill-a, got: %v", resultA.Err)
+		}
+	}
+
+	// skill-b should succeed despite skill-a failing
+	if resultB, ok := resultMap["skill-b"]; !ok {
+		t.Error("Expected result for skill-b")
+	} else {
+		if resultB.Err != nil {
+			t.Errorf("Expected no error for skill-b, got: %v", resultB.Err)
+		}
+		if resultB.NewVersion != "v2.0.0" {
+			t.Errorf("Expected skill-b new version 'v2.0.0', got '%s'", resultB.NewVersion)
+		}
 	}
 }

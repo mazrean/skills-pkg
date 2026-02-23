@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"sync"
 
 	"github.com/mazrean/skills-pkg/internal/port"
 	"golang.org/x/sync/errgroup"
@@ -29,8 +30,15 @@ type SkillManager interface {
 	// This is useful when you want to add a skill to the config and install it in one operation.
 	InstallSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) error
 
-	// Update updates the specified skill. If skillName is empty, updates all skills.
-	Update(ctx context.Context, skillName string) (*UpdateResult, error)
+	// Update updates the skills matching the given criteria.
+	//
+	// skillNames: slice of skill names to update. If empty, all skills are updated.
+	// sourceFilter: filter by source type ("git" or "go-mod"). If empty, no filter is applied.
+	//
+	// Returns a slice of UpdateResult (one per skill, including successes, skips, and failures).
+	// Critical errors (e.g. config load failure) are returned as the error return value.
+	// Individual skill failures are stored in UpdateResult.Err.
+	Update(ctx context.Context, skillNames []string, sourceFilter string) ([]*UpdateResult, error)
 
 	// Uninstall removes the specified skill.
 	Uninstall(ctx context.Context, skillName string) error
@@ -43,6 +51,8 @@ type UpdateResult struct {
 	SkillName  string // Name of the updated skill
 	OldVersion string // Previous version
 	NewVersion string // New version after update
+	Skipped    bool   // True if the skill was skipped (e.g., already at latest version)
+	Err        error  // Non-nil if the update failed for this skill
 }
 
 // skillManagerImpl is the concrete implementation of SkillManager.
@@ -363,63 +373,95 @@ func (s *skillManagerImpl) InstallSingleSkill(ctx context.Context, config *Confi
 // Update updates the specified skill to the latest version.
 // If skillName is empty, it updates all skills from the configuration.
 // Requirements: 5.3, 7.1, 7.2, 7.5, 7.6, 12.1, 12.2, 12.3
-func (s *skillManagerImpl) Update(ctx context.Context, skillName string) (*UpdateResult, error) {
-	// Load configuration (Requirement 7.1)
+func (s *skillManagerImpl) Update(ctx context.Context, skillNames []string, sourceFilter string) ([]*UpdateResult, error) {
+	// Load configuration
 	config, err := s.configManager.Load(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Determine which skills to update (Requirements 7.1, 7.2)
+	// Determine which skills to update
 	var skillsToUpdate []*Skill
-	if skillName == "" {
-		// Update all skills (Requirement 7.1)
-		skillsToUpdate = config.Skills
-	} else {
-		// Update specific skill (Requirement 7.2)
-		skill := config.FindSkillByName(skillName)
-		if skill == nil {
-			// Requirement 12.2, 12.3
-			return nil, fmt.Errorf("%w: skill '%s' not found in configuration", ErrSkillNotFound, skillName)
+	var preResults []*UpdateResult
+
+	if len(skillNames) == 0 {
+		if sourceFilter == "" {
+			// Update all skills
+			skillsToUpdate = config.Skills
+		} else {
+			// Filter by source type
+			skillsToUpdate = config.FindSkillsBySource(sourceFilter)
 		}
-		skillsToUpdate = []*Skill{skill}
+	} else {
+		// Update specific skills by name
+		for _, skillName := range skillNames {
+			skill := config.FindSkillByName(skillName)
+			if skill == nil {
+				preResults = append(preResults, &UpdateResult{
+					SkillName: skillName,
+					Err:       fmt.Errorf("%w: skill '%s' not found in configuration", ErrSkillNotFound, skillName),
+				})
+				continue
+			}
+			if sourceFilter != "" && skill.Source != sourceFilter {
+				preResults = append(preResults, &UpdateResult{
+					SkillName: skillName,
+					Err:       ErrSourceMismatch,
+				})
+				continue
+			}
+			skillsToUpdate = append(skillsToUpdate, skill)
+		}
 	}
 
-	// Update skills concurrently using errgroup
-	results := make([]*UpdateResult, len(skillsToUpdate))
-	eg, egCtx := errgroup.WithContext(ctx)
+	// Print update target list and handle no-skills-found case (req 6.1, req 2.2)
+	if len(skillsToUpdate) == 0 && sourceFilter != "" && len(skillNames) == 0 {
+		fmt.Printf("No skills found for source '%s'.\n", sourceFilter)
+		return preResults, nil
+	}
+
+	if len(skillsToUpdate) > 0 {
+		names := make([]string, len(skillsToUpdate))
+		for i, skill := range skillsToUpdate {
+			names[i] = skill.Name
+		}
+		fmt.Printf("Updating %d skill(s): %v\n", len(skillsToUpdate), names)
+	}
+
+	// Update skills concurrently using WaitGroup + Mutex
+	// Individual skill failures are stored in UpdateResult.Err while all skills continue to be processed.
+	skillResults := make([]*UpdateResult, len(skillsToUpdate))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	for i, skill := range skillsToUpdate {
-		eg.Go(func() error {
-			result, err := s.updateSingleSkill(egCtx, config, skill, false)
-			if err != nil {
-				return err
-			}
-			results[i] = result
-			return nil
-		})
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			result := s.updateSingleSkill(ctx, config, skill, false)
+			mu.Lock()
+			skillResults[i] = result
+			mu.Unlock()
+		}()
 	}
 
 	// Wait for all updates to complete
-	if err := eg.Wait(); err != nil {
-		return nil, err
-	}
+	wg.Wait()
+
+	results := append(preResults, skillResults...)
 
 	// Save configuration once after all skills are updated
 	if err := s.configManager.Save(ctx, config); err != nil {
 		return nil, fmt.Errorf("failed to save configuration: %w", err)
 	}
 
-	// Return the last update result
-	// For single skill update, this is the result for that skill
-	// For all skills update, this is the result for the last skill
-	return results[len(results)-1], nil
+	return results, nil
 }
 
 // updateSingleSkill updates a single skill to the latest version.
 // If saveConfig is true, saves the configuration after updating skill metadata.
 // Requirements: 5.3, 7.1, 7.2, 7.5, 7.6, 12.1, 12.2, 12.3
-func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) (*UpdateResult, error) {
+func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) *UpdateResult {
 	// Record old version (Requirement 7.6)
 	oldVersion := skill.Version
 
@@ -429,7 +471,7 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	// Select appropriate package manager (Requirement 11.4)
 	pm, err := s.selectPackageManager(skill.Source)
 	if err != nil {
-		return nil, fmt.Errorf("failed to select package manager for skill '%s': %w", skill.Name, err)
+		return &UpdateResult{SkillName: skill.Name, OldVersion: oldVersion, Err: fmt.Errorf("failed to select package manager for skill '%s': %w", skill.Name, err)}
 	}
 
 	// Create source from skill
@@ -444,9 +486,20 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	if err != nil {
 		// Network error handling (Requirement 12.2, 12.3)
 		if IsNetworkError(err) {
-			return nil, fmt.Errorf("failed to get latest version for skill '%s': %w. Check your network connection and source URL", skill.Name, err)
+			return &UpdateResult{SkillName: skill.Name, OldVersion: oldVersion, Err: fmt.Errorf("failed to get latest version for skill '%s': %w. Check your network connection and source URL", skill.Name, err)}
 		}
-		return nil, fmt.Errorf("failed to get latest version for skill '%s': %w", skill.Name, err)
+		return &UpdateResult{SkillName: skill.Name, OldVersion: oldVersion, Err: fmt.Errorf("failed to get latest version for skill '%s': %w", skill.Name, err)}
+	}
+
+	// Skip if already at latest version (Requirement 3.3)
+	if latestVersion == skill.Version {
+		fmt.Printf("Skill '%s' is already at the latest version %s, skipping...\n", skill.Name, latestVersion)
+		return &UpdateResult{
+			SkillName:  skill.Name,
+			OldVersion: oldVersion,
+			NewVersion: latestVersion,
+			Skipped:    true,
+		}
 	}
 
 	// Download latest version (Requirement 7.4)
@@ -455,9 +508,9 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	if err != nil {
 		// Network error handling (Requirement 12.2, 12.3)
 		if IsNetworkError(err) {
-			return nil, fmt.Errorf("failed to download skill '%s': %w. Check your network connection and source URL", skill.Name, err)
+			return &UpdateResult{SkillName: skill.Name, OldVersion: oldVersion, Err: fmt.Errorf("failed to download skill '%s': %w. Check your network connection and source URL", skill.Name, err)}
 		}
-		return nil, fmt.Errorf("failed to download skill '%s': %w", skill.Name, err)
+		return &UpdateResult{SkillName: skill.Name, OldVersion: oldVersion, Err: fmt.Errorf("failed to download skill '%s': %w", skill.Name, err)}
 	}
 
 	// Determine the source path to use for installation and hash calculation
@@ -469,9 +522,9 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		// Verify that the subdirectory exists
 		if _, statErr := os.Stat(sourcePath); statErr != nil {
 			if os.IsNotExist(statErr) {
-				return nil, fmt.Errorf("subdirectory '%s' not found in downloaded skill '%s'. Available content is in: %s", skill.SubDir, skill.Name, downloadResult.Path)
+				return &UpdateResult{SkillName: skill.Name, OldVersion: oldVersion, Err: fmt.Errorf("subdirectory '%s' not found in downloaded skill '%s'. Available content is in: %s", skill.SubDir, skill.Name, downloadResult.Path)}
 			}
-			return nil, fmt.Errorf("failed to access subdirectory '%s' in skill '%s': %w", skill.SubDir, skill.Name, statErr)
+			return &UpdateResult{SkillName: skill.Name, OldVersion: oldVersion, Err: fmt.Errorf("failed to access subdirectory '%s' in skill '%s': %w", skill.SubDir, skill.Name, statErr)}
 		}
 		fmt.Printf("Using subdirectory '%s' from downloaded content...\n", skill.SubDir)
 	}
@@ -485,7 +538,7 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
 		hashResult, err := s.hashService.CalculateHash(ctx, sourcePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
+			return &UpdateResult{SkillName: skill.Name, OldVersion: oldVersion, Err: fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)}
 		}
 		skill.HashValue = hashResult.Value
 	} else {
@@ -500,7 +553,7 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 	if saveConfig {
 		if err := s.configManager.Save(ctx, config); err != nil {
 			// Filesystem error handling (Requirement 12.2, 12.3)
-			return nil, fmt.Errorf("failed to save configuration after update: %w. Check file permissions", err)
+			return &UpdateResult{SkillName: skill.Name, OldVersion: oldVersion, Err: fmt.Errorf("failed to save configuration after update: %w. Check file permissions", err)}
 		}
 	}
 
@@ -511,7 +564,7 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		fmt.Printf("Installing updated skill '%s' to %d target(s)...\n", skill.Name, len(installTargets))
 		if err := s.copySkillToTargets(sourcePath, skill.Name, installTargets); err != nil {
 			// Filesystem error handling (Requirement 12.2, 12.3)
-			return nil, fmt.Errorf("failed to copy updated skill '%s' to install targets: %w. Check file permissions", skill.Name, err)
+			return &UpdateResult{SkillName: skill.Name, OldVersion: oldVersion, Err: fmt.Errorf("failed to copy updated skill '%s' to install targets: %w. Check file permissions", skill.Name, err)}
 		}
 	}
 
@@ -523,7 +576,7 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		SkillName:  skill.Name,
 		OldVersion: oldVersion,
 		NewVersion: downloadResult.Version,
-	}, nil
+	}
 }
 
 // Uninstall removes the specified skill from all installation targets
