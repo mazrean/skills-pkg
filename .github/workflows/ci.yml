@@ -63,7 +63,7 @@ jobs:
         run: go build -v ./...
 
       - name: GoReleaser Build Check
-        run: go run github.com/goreleaser/goreleaser/v2@latest build --snapshot --clean --skip=validate
+        run: go tool github.com/goreleaser/goreleaser/v2 build --snapshot --clean
 
   mod-tidy:
     name: Check go mod tidy
