@@ -28,11 +28,11 @@ func TestIsSSHURL(t *testing.T) {
 
 func TestBuildHTTPSAuth(t *testing.T) {
 	tests := []struct {
-		name     string
 		env      map[string]string
-		wantNil  bool
+		name     string
 		wantUser string
 		wantPass string
+		wantNil  bool
 	}{
 		{
 			name:    "no credentials",
