@@ -29,6 +29,9 @@ var (
 
 	// ErrInvalidSkill indicates that a skill has invalid field values.
 	ErrInvalidSkill = errors.New("invalid skill configuration")
+
+	// ErrSourceMismatch は指定されたスキルのソースタイプがフィルタと不一致であることを示す。
+	ErrSourceMismatch = errors.New("skill source type does not match filter")
 )
 
 // IsNetworkError checks if an error is a network-related error.
