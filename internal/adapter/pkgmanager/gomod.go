@@ -7,15 +7,17 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/mazrean/skills-pkg/internal/domain"
 	"github.com/mazrean/skills-pkg/internal/port"
 	"golang.org/x/mod/modfile"
@@ -24,9 +26,6 @@ import (
 const (
 	// dirPerms is the default permission for created directories
 	dirPerms = 0755
-
-	// minGitLsRemoteFields is the minimum number of fields in git ls-remote output
-	minGitLsRemoteFields = 2
 )
 
 // proxyEntry represents a single entry in GOPROXY.
@@ -520,41 +519,23 @@ func (a *GoMod) createTempDir() (string, error) {
 }
 
 // fetchLatestVersionDirect fetches the latest version directly from the version control system.
-// It uses git to query the repository for the latest tag.
+// It uses go-git to query the repository for the latest tag without requiring the git command.
 func (a *GoMod) fetchLatestVersionDirect(ctx context.Context, modulePath string) (string, error) {
-	// Convert module path to repository URL
-	// For simplicity, we assume the module path is a valid git repository URL
-	// In a full implementation, this would need to handle various VCS systems and URL schemes
 	repoURL := "https://" + modulePath
 
-	// Use git ls-remote to get the latest tag
-	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--tags", "--refs", repoURL)
-	output, err := cmd.Output()
+	remote := git.NewRemote(memory.NewStorage(), &config.RemoteConfig{
+		Name: "origin",
+		URLs: []string{repoURL},
+	})
+
+	refs, err := remote.ListContext(ctx, &git.ListOptions{})
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return "", fmt.Errorf("%w: failed to fetch tags from %s: %s", domain.ErrNetworkFailure, repoURL, string(exitErr.Stderr))
-		}
 		return "", fmt.Errorf("%w: failed to fetch tags from %s: %w", domain.ErrNetworkFailure, repoURL, err)
 	}
 
-	// Parse the output to find the latest version tag
-	lines := strings.Split(string(output), "\n")
 	var latestVersion string
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		parts := strings.Fields(line)
-		if len(parts) < minGitLsRemoteFields {
-			continue
-		}
-
-		ref := parts[1]
-		// Extract version from refs/tags/vX.Y.Z
-		if tag, found := strings.CutPrefix(ref, "refs/tags/"); found {
+	for _, ref := range refs {
+		if tag, found := strings.CutPrefix(string(ref.Name()), "refs/tags/"); found {
 			// Simple heuristic: use the last tag as the latest
 			// In a full implementation, this would need semantic version comparison
 			latestVersion = tag
@@ -569,9 +550,8 @@ func (a *GoMod) fetchLatestVersionDirect(ctx context.Context, modulePath string)
 }
 
 // downloadDirect downloads a module directly from the version control system.
-// It uses git to clone the repository at the specified version.
+// It uses go-git to clone the repository at the specified version without requiring the git command.
 func (a *GoMod) downloadDirect(ctx context.Context, modulePath, version, targetDir string) error {
-	// Convert module path to repository URL
 	repoURL := "https://" + modulePath
 
 	// Create a temporary directory for the clone
@@ -583,15 +563,33 @@ func (a *GoMod) downloadDirect(ctx context.Context, modulePath, version, targetD
 		_ = os.RemoveAll(cloneDir)
 	}()
 
-	// Clone the repository with the specified tag/branch
-	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", "--branch", version, repoURL, cloneDir)
-	err = cmd.Run()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return fmt.Errorf("%w: failed to clone repository %s at version %s: %s", domain.ErrNetworkFailure, repoURL, version, string(exitErr.Stderr))
+	// Try tag reference first, then branch reference (mirrors `git clone --branch <version>` behavior)
+	refNames := []plumbing.ReferenceName{
+		plumbing.NewTagReferenceName(version),
+		plumbing.NewBranchReferenceName(version),
+	}
+
+	var cloneErr error
+	for _, refName := range refNames {
+		if err = os.RemoveAll(cloneDir); err != nil {
+			return fmt.Errorf("failed to clean temporary directory: %w", err)
 		}
-		return fmt.Errorf("%w: failed to clone repository %s at version %s: %w", domain.ErrNetworkFailure, repoURL, version, err)
+		if err = os.MkdirAll(cloneDir, dirPerms); err != nil {
+			return fmt.Errorf("failed to recreate temporary directory: %w", err)
+		}
+		_, cloneErr = git.PlainCloneContext(ctx, cloneDir, false, &git.CloneOptions{
+			URL:           repoURL,
+			ReferenceName: refName,
+			SingleBranch:  true,
+			Depth:         1,
+		})
+		if cloneErr == nil {
+			break
+		}
+	}
+
+	if cloneErr != nil {
+		return fmt.Errorf("%w: failed to clone repository %s at version %s: %w", domain.ErrNetworkFailure, repoURL, version, cloneErr)
 	}
 
 	// Copy files from clone directory to target directory, excluding .git
