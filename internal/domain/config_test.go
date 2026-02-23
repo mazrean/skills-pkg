@@ -172,6 +172,69 @@ func TestConfig_HasSkill(t *testing.T) {
 	}
 }
 
+func TestConfig_FindSkillsBySource(t *testing.T) {
+	skills := []*domain.Skill{
+		{Name: "git-skill1", Source: "git", URL: "https://github.com/example/skill1.git"},
+		{Name: "git-skill2", Source: "git", URL: "https://github.com/example/skill2.git"},
+		{Name: "gomod-skill1", Source: "go-mod", URL: "github.com/example/skill3"},
+	}
+	config := &domain.Config{
+		Skills:         skills,
+		InstallTargets: []string{"/path/to/dir"},
+	}
+
+	tests := []struct {
+		name       string
+		sourceType string
+		wantNames  []string
+	}{
+		{
+			name:       "filter git skills",
+			sourceType: "git",
+			wantNames:  []string{"git-skill1", "git-skill2"},
+		},
+		{
+			name:       "filter go-mod skills",
+			sourceType: "go-mod",
+			wantNames:  []string{"gomod-skill1"},
+		},
+		{
+			name:       "no matching skills returns empty slice",
+			sourceType: "nonexistent",
+			wantNames:  []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := config.FindSkillsBySource(tt.sourceType)
+			if len(got) != len(tt.wantNames) {
+				t.Errorf("Config.FindSkillsBySource() returned %d skills, want %d", len(got), len(tt.wantNames))
+				return
+			}
+			for i, skill := range got {
+				if skill.Name != tt.wantNames[i] {
+					t.Errorf("Config.FindSkillsBySource()[%d].Name = %v, want %v", i, skill.Name, tt.wantNames[i])
+				}
+			}
+		})
+	}
+}
+
+func TestConfig_FindSkillsBySource_EmptyConfig(t *testing.T) {
+	config := &domain.Config{
+		Skills:         []*domain.Skill{},
+		InstallTargets: []string{"/path/to/dir"},
+	}
+	got := config.FindSkillsBySource("git")
+	if got == nil {
+		t.Error("Config.FindSkillsBySource() returned nil, want empty slice")
+	}
+	if len(got) != 0 {
+		t.Errorf("Config.FindSkillsBySource() returned %d skills, want 0", len(got))
+	}
+}
+
 func TestConfig_Validate(t *testing.T) {
 	tests := []struct {
 		wantErr error

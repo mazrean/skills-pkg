@@ -58,6 +58,18 @@ func (c *Config) FindSkillByName(name string) *Skill {
 	return nil
 }
 
+// FindSkillsBySource は指定ソースタイプに一致するスキルのスライスを返す。
+// 一致するスキルが存在しない場合は空スライスを返す。
+func (c *Config) FindSkillsBySource(sourceType string) []*Skill {
+	result := make([]*Skill, 0)
+	for _, skill := range c.Skills {
+		if skill.Source == sourceType {
+			result = append(result, skill)
+		}
+	}
+	return result
+}
+
 // HasSkill checks if a skill with the given name exists.
 // Requirements: 2.3
 func (c *Config) HasSkill(name string) bool {
