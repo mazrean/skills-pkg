@@ -528,7 +528,9 @@ func (a *GoMod) fetchLatestVersionDirect(ctx context.Context, modulePath string)
 		URLs: []string{repoURL},
 	})
 
-	refs, err := remote.ListContext(ctx, &git.ListOptions{})
+	auth, _ := buildAuthMethod(repoURL)
+
+	refs, err := remote.ListContext(ctx, &git.ListOptions{Auth: auth})
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to fetch tags from %s: %w", domain.ErrNetworkFailure, repoURL, err)
 	}
@@ -569,6 +571,8 @@ func (a *GoMod) downloadDirect(ctx context.Context, modulePath, version, targetD
 		plumbing.NewBranchReferenceName(version),
 	}
 
+	auth, _ := buildAuthMethod(repoURL)
+
 	var cloneErr error
 	for _, refName := range refNames {
 		if err = os.RemoveAll(cloneDir); err != nil {
@@ -579,6 +583,7 @@ func (a *GoMod) downloadDirect(ctx context.Context, modulePath, version, targetD
 		}
 		_, cloneErr = git.PlainCloneContext(ctx, cloneDir, false, &git.CloneOptions{
 			URL:           repoURL,
+			Auth:          auth,
 			ReferenceName: refName,
 			SingleBranch:  true,
 			Depth:         1,
