@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"slices"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -248,4 +249,29 @@ func (m *ConfigManager) GetInstallTargets(ctx context.Context) ([]string, error)
 
 	// Return the install targets list
 	return config.InstallTargets, nil
+}
+
+// AddInstallTarget adds a new install target directory to the configuration.
+// It returns ErrInstallTargetExists if the target already exists.
+func (m *ConfigManager) AddInstallTarget(ctx context.Context, target string) error {
+	// Load the current config
+	config, err := m.Load(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Check for duplicate install targets
+	if slices.Contains(config.InstallTargets, target) {
+		return &ErrorInstallTargetExists{Target: target}
+	}
+
+	// Add the install target
+	config.InstallTargets = append(config.InstallTargets, target)
+
+	// Save the updated config
+	if err := m.Save(ctx, config); err != nil {
+		return fmt.Errorf("failed to save configuration after adding install target '%s': %w", target, err)
+	}
+
+	return nil
 }
