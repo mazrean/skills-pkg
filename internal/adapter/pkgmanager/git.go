@@ -12,6 +12,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/mazrean/skills-pkg/internal/domain"
 	"github.com/mazrean/skills-pkg/internal/port"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -236,12 +237,20 @@ func (a *Git) getLatestTag(repo *git.Repository) (string, error) {
 		return "", fmt.Errorf("failed to get tags: %w", err)
 	}
 
-	var latestTag string
+	var latestRelease, latestPre string
 	err = tags.ForEach(func(ref *plumbing.Reference) error {
 		tagName := ref.Name().Short()
-		// Simple heuristic: use the first tag (could be improved with semantic versioning)
-		if latestTag == "" {
-			latestTag = tagName
+		if !semver.IsValid(tagName) {
+			return nil
+		}
+		if semver.Prerelease(tagName) == "" {
+			if semver.Compare(tagName, latestRelease) > 0 {
+				latestRelease = tagName
+			}
+		} else {
+			if semver.Compare(tagName, latestPre) > 0 {
+				latestPre = tagName
+			}
 		}
 		return nil
 	})
@@ -249,5 +258,8 @@ func (a *Git) getLatestTag(repo *git.Repository) (string, error) {
 		return "", fmt.Errorf("failed to iterate tags: %w", err)
 	}
 
-	return latestTag, nil
+	if latestRelease != "" {
+		return latestRelease, nil
+	}
+	return latestPre, nil
 }
