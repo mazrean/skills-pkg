@@ -40,7 +40,6 @@ func TestUninstallCmd_Run(t *testing.T) {
 					Source:    "git",
 					URL:       "https://example.com/test.git",
 					Version:   "v1.0.0",
-					HashAlgo:  "sha256",
 					HashValue: "abc123",
 				}
 				if err := configManager.AddSkill(context.Background(), skill); err != nil {
@@ -135,7 +134,6 @@ func TestUninstallCmd_Run(t *testing.T) {
 					Source:    "git",
 					URL:       "https://example.com/test.git",
 					Version:   "v1.0.0",
-					HashAlgo:  "sha256",
 					HashValue: "abc123",
 				}
 				if err := configManager.AddSkill(context.Background(), skill); err != nil {

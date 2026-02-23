@@ -80,7 +80,6 @@ func (c *AddCmd) runWithDeps(configPath string, verbose bool, hashService port.H
 		Source:    c.Source,
 		URL:       c.URL,
 		Version:   c.Version,
-		HashAlgo:  "", // Hash will be set during installation
 		HashValue: "", // Hash will be set during installation
 		SubDir:    subDir,
 	}

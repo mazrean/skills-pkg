@@ -40,7 +40,6 @@ func TestListCmd_Run(t *testing.T) {
 					Source:    "git",
 					URL:       "https://github.com/example/skill.git",
 					Version:   "v1.0.0",
-					HashAlgo:  "sha256",
 					HashValue: "abc123",
 				}
 				if err := cm.AddSkill(context.Background(), gitSkill); err != nil {
@@ -53,7 +52,6 @@ func TestListCmd_Run(t *testing.T) {
 					Source:    "go-mod",
 					URL:       "github.com/example/skill",
 					Version:   "v2.0.0",
-					HashAlgo:  "sha256",
 					HashValue: "def456",
 				}
 				if err := cm.AddSkill(context.Background(), goModSkill); err != nil {
@@ -66,7 +64,6 @@ func TestListCmd_Run(t *testing.T) {
 					Source:    "go-mod",
 					URL:       "github.com/example/go-skill",
 					Version:   "v0.5.0",
-					HashAlgo:  "sha256",
 					HashValue: "ghi789",
 				}
 				if err := cm.AddSkill(context.Background(), goSkill); err != nil {

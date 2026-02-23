@@ -64,7 +64,6 @@ func TestVerifyCmd_Run(t *testing.T) {
 					Source:    "git",
 					URL:       "https://github.com/example/skill1.git",
 					Version:   "v1.0.0",
-					HashAlgo:  "sha256",
 					HashValue: hash1.Value,
 				}
 				if err := cm.AddSkill(context.Background(), skill1); err != nil {
@@ -76,7 +75,6 @@ func TestVerifyCmd_Run(t *testing.T) {
 					Source:    "go-mod",
 					URL:       "example-skill2",
 					Version:   "2.0.0",
-					HashAlgo:  "sha256",
 					HashValue: hash2.Value,
 				}
 				if err := cm.AddSkill(context.Background(), skill2); err != nil {
@@ -139,7 +137,6 @@ func TestVerifyCmd_Run(t *testing.T) {
 					Source:    "git",
 					URL:       "https://github.com/example/skill1.git",
 					Version:   "v1.0.0",
-					HashAlgo:  "sha256",
 					HashValue: "incorrect_hash_value",
 				}
 				if err := cm.AddSkill(context.Background(), skill); err != nil {

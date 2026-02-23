@@ -68,7 +68,6 @@ func TestHashVerificationIntegration(t *testing.T) {
 					Source:    "git",
 					URL:       skillDir,
 					Version:   "1.0.0",
-					HashAlgo:  "sha256",
 					HashValue: "placeholder",
 				}
 
@@ -81,10 +80,6 @@ func TestHashVerificationIntegration(t *testing.T) {
 				hashResult, err := hashService.CalculateHash(ctx, skillDir)
 				if err != nil {
 					t.Fatalf("CalculateHash failed: %v", err)
-				}
-
-				if hashResult.Algorithm != "sha256" {
-					t.Errorf("Expected algorithm sha256, got %s", hashResult.Algorithm)
 				}
 
 				if hashResult.Value == "" {
@@ -145,7 +140,6 @@ func TestHashVerificationIntegration(t *testing.T) {
 					Source:    "git",
 					URL:       skillDir,
 					Version:   "1.0.0",
-					HashAlgo:  "sha256",
 					HashValue: originalHash.Value,
 				}
 
@@ -220,7 +214,6 @@ func TestHashVerificationIntegration(t *testing.T) {
 						Source:    "git",
 						URL:       skillDir,
 						Version:   "1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: hashResult.Value,
 					}
 
@@ -316,14 +309,6 @@ func TestHashVerificationIntegration(t *testing.T) {
 
 				if hash1.Value != hash2.Value {
 					t.Errorf("Hash values are inconsistent: %s != %s", hash1.Value, hash2.Value)
-				}
-
-				if hash1.Algorithm != hash2.Algorithm {
-					t.Errorf("Hash algorithms are inconsistent: %s != %s", hash1.Algorithm, hash2.Algorithm)
-				}
-
-				if hash1.Algorithm != "sha256" {
-					t.Errorf("Expected sha256 algorithm, got %s", hash1.Algorithm)
 				}
 			},
 		},

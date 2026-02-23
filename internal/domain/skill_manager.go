@@ -321,14 +321,12 @@ func (s *skillManagerImpl) InstallSingleSkill(ctx context.Context, config *Confi
 		if err != nil {
 			return fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
 		}
-		skill.HashAlgo = hashResult.Algorithm
 		skill.HashValue = hashResult.Value
 	} else {
 		// Clear version and hash values when using go.mod version
 		// Version and hash verification will use go.mod/go.sum instead
 		// This ensures go.mod remains the source of truth
 		skill.Version = ""
-		skill.HashAlgo = ""
 		skill.HashValue = ""
 	}
 
@@ -489,14 +487,12 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
 		}
-		skill.HashAlgo = hashResult.Algorithm
 		skill.HashValue = hashResult.Value
 	} else {
 		// Clear version and hash values when using go.mod version
 		// Version and hash verification will use go.mod/go.sum instead
 		// This ensures go.mod remains the source of truth
 		skill.Version = ""
-		skill.HashAlgo = ""
 		skill.HashValue = ""
 	}
 

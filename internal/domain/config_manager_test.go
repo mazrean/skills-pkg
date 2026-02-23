@@ -169,7 +169,6 @@ name = "example-skill"
 source = "git"
 url = "https://github.com/example/skill.git"
 version = "v1.0.0"
-hash_algo = "sha256"
 hash_value = "a1b2c3d4"
 
 [[skills]]
@@ -177,7 +176,6 @@ name = "npm-skill"
 source = "go-mod"
 url = "example-skill"
 version = "1.0.0"
-hash_algo = "sha256"
 hash_value = "e5f6g7h8"
 package_manager = "go-mod"
 `,
@@ -214,9 +212,6 @@ package_manager = "go-mod"
 				}
 				if skill1.Version != "v1.0.0" {
 					t.Errorf("expected skill version 'v1.0.0', got '%s'", skill1.Version)
-				}
-				if skill1.HashAlgo != "sha256" {
-					t.Errorf("expected hash algo 'sha256', got '%s'", skill1.HashAlgo)
 				}
 				if skill1.HashValue != "a1b2c3d4" {
 					t.Errorf("expected hash value 'a1b2c3d4', got '%s'", skill1.HashValue)
@@ -338,7 +333,6 @@ func TestConfigManager_Save(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/example/skill.git",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: "a1b2c3d4",
 					},
 				},
@@ -458,7 +452,6 @@ func TestConfigManager_AddSkill(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/test/skill.git",
 				Version:   "v1.0.0",
-				HashAlgo:  "sha256",
 				HashValue: "abc123",
 			},
 			wantErr: nil,
@@ -489,7 +482,6 @@ func TestConfigManager_AddSkill(t *testing.T) {
 				Source:         "go-mod",
 				URL:            "example-package",
 				Version:        "1.0.0",
-				HashAlgo:       "sha256",
 				HashValue:      "def456",
 			},
 			wantErr: nil,
@@ -513,7 +505,6 @@ func TestConfigManager_AddSkill(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/existing/skill.git",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: "xyz789",
 					},
 				},
@@ -523,7 +514,6 @@ func TestConfigManager_AddSkill(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/new/skill.git",
 				Version:   "v2.0.0",
-				HashAlgo:  "sha256",
 				HashValue: "abc123",
 			},
 			wantErr: domain.ErrSkillExists,
@@ -598,7 +588,6 @@ func TestConfigManager_UpdateSkill(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/test/skill.git",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: "old-hash",
 					},
 				},
@@ -608,7 +597,6 @@ func TestConfigManager_UpdateSkill(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/test/skill.git",
 				Version:   "v2.0.0",
-				HashAlgo:  "sha256",
 				HashValue: "new-hash",
 			},
 			wantErr: nil,
@@ -636,7 +624,6 @@ func TestConfigManager_UpdateSkill(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/test/skill.git",
 				Version:   "v1.0.0",
-				HashAlgo:  "sha256",
 				HashValue: "abc123",
 			},
 			wantErr: domain.ErrSkillNotFound,
@@ -710,7 +697,6 @@ func TestConfigManager_RemoveSkill(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/test/skill.git",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: "abc123",
 					},
 					{
@@ -718,7 +704,6 @@ func TestConfigManager_RemoveSkill(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/test/other.git",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: "def456",
 					},
 				},
@@ -744,7 +729,6 @@ func TestConfigManager_RemoveSkill(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/test/skill.git",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: "abc123",
 					},
 				},
@@ -767,7 +751,6 @@ func TestConfigManager_RemoveSkill(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/test/skill.git",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: "abc123",
 					},
 				},
@@ -939,7 +922,6 @@ func TestConfigManager_ListSkills(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/test/skill1.git",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: "abc123",
 					},
 					{
@@ -947,7 +929,6 @@ func TestConfigManager_ListSkills(t *testing.T) {
 						Source:         "go-mod",
 						URL:            "npm-package",
 						Version:        "2.0.0",
-						HashAlgo:       "sha256",
 						HashValue:      "def456",
 					},
 				},
