@@ -41,3 +41,8 @@ func (a *Goose) ResolveAgentDir(agentName string) (string, error) {
 func (a *Goose) AgentName() string {
 	return "goose"
 }
+
+// ProjectDir returns the project-level install directory for the agent.
+func (a *Goose) ProjectDir() string {
+	return ".goose/skills"
+}

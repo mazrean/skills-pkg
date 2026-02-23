@@ -41,3 +41,8 @@ func (a *Codex) ResolveAgentDir(agentName string) (string, error) {
 func (a *Codex) AgentName() string {
 	return "codex"
 }
+
+// ProjectDir returns the project-level install directory for the agent.
+func (a *Codex) ProjectDir() string {
+	return ".agents/skills"
+}

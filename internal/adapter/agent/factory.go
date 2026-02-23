@@ -41,3 +41,8 @@ func (a *Factory) ResolveAgentDir(agentName string) (string, error) {
 func (a *Factory) AgentName() string {
 	return "factory"
 }
+
+// ProjectDir returns the project-level install directory for the agent.
+func (a *Factory) ProjectDir() string {
+	return ".factory/skills"
+}

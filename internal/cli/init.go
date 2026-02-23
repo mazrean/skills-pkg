@@ -112,29 +112,26 @@ func (c *InitCmd) buildInstallTargets(logger *Logger) ([]string, error) {
 		for _, agent := range c.Agent {
 			logger.Verbose("Resolving agent directory for: %s (global=%v)", agent, c.Global)
 
-			// Validate --global flag usage
+			agentProvider, err := c.getAgentProvider(agent)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get agent provider for %s: %w", agent, err)
+			}
+
+			var agentDir string
 			if c.Global {
 				// Use AgentProvider to resolve user-level directory (requirements 10.3, 10.4)
-				agentProvider, err := c.getAgentProvider(agent)
+				agentDir, err = agentProvider.ResolveAgentDir(agent)
 				if err != nil {
-					// Report unsupported agent error with cause and recommended action (requirements 12.2, 12.3)
-					return nil, fmt.Errorf("failed to get agent provider for %s: %w", agent, err)
-				}
-
-				agentDir, err := agentProvider.ResolveAgentDir(agent)
-				if err != nil {
-					// Report unsupported agent error with cause and recommended action (requirements 12.2, 12.3)
 					return nil, fmt.Errorf("failed to resolve agent directory for %s: %w", agent, err)
 				}
-
 				logger.Verbose("Resolved user-level agent directory: %s", agentDir)
-				installTargets = append(installTargets, agentDir)
 			} else {
-				// Use project-level agent directory (e.g., ./.claude/skills)
-				agentDir := fmt.Sprintf("./.%s/skills", agent)
+				// Use agent-specific project-level directory
+				agentDir = agentProvider.ProjectDir()
 				logger.Verbose("Using project-level agent directory: %s", agentDir)
-				installTargets = append(installTargets, agentDir)
 			}
+
+			installTargets = append(installTargets, agentDir)
 		}
 	}
 

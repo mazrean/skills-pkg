@@ -41,3 +41,8 @@ func (a *Cursor) ResolveAgentDir(agentName string) (string, error) {
 func (a *Cursor) AgentName() string {
 	return "cursor"
 }
+
+// ProjectDir returns the project-level install directory for the agent.
+func (a *Cursor) ProjectDir() string {
+	return ".agents/skills"
+}

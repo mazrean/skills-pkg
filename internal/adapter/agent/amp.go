@@ -43,3 +43,8 @@ func (a *Amp) ResolveAgentDir(agentName string) (string, error) {
 func (a *Amp) AgentName() string {
 	return "amp"
 }
+
+// ProjectDir returns the project-level install directory for the agent.
+func (a *Amp) ProjectDir() string {
+	return ".agents/skills"
+}
