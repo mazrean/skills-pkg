@@ -64,7 +64,6 @@ func TestConfigManagerTOMLIntegration(t *testing.T) {
 					Source:    "git",
 					URL:       "https://github.com/example/skill.git",
 					Version:   "v1.0.0",
-					HashAlgo:  "sha256",
 					HashValue: "a1b2c3d4e5f6",
 				}
 
@@ -193,7 +192,6 @@ func TestSkillOperationIntegration(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/example/git-skill.git",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: "hash1",
 					},
 					{
@@ -201,7 +199,6 @@ func TestSkillOperationIntegration(t *testing.T) {
 						Source:    "go-mod",
 						URL:       "example-npm-skill",
 						Version:   "1.0.0",
-						HashAlgo:  "sha256",
 						HashValue: "hash2",
 					},
 				}
@@ -226,7 +223,6 @@ func TestSkillOperationIntegration(t *testing.T) {
 					Source:    "git",
 					URL:       "https://github.com/example/git-skill.git",
 					Version:   "v2.0.0",
-					HashAlgo:  "sha256",
 					HashValue: "new-hash1",
 				}
 
@@ -298,7 +294,6 @@ func TestSkillOperationIntegration(t *testing.T) {
 					Source:    "git",
 					URL:       "https://github.com/example/skill.git",
 					Version:   "v1.0.0",
-					HashAlgo:  "sha256",
 					HashValue: "hash",
 				}
 

@@ -177,7 +177,6 @@ func (m *ConfigManager) UpdateSkill(ctx context.Context, skill *Skill) error {
 	existingSkill.Source = skill.Source
 	existingSkill.URL = skill.URL
 	existingSkill.Version = skill.Version
-	existingSkill.HashAlgo = skill.HashAlgo
 	existingSkill.HashValue = skill.HashValue
 	existingSkill.SubDir = skill.SubDir
 

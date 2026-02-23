@@ -129,7 +129,6 @@ func TestHashVerifier_Verify(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/test/test-skill.git",
 				Version:   "v1.0.0",
-				HashAlgo:  expectedHash.Algorithm,
 				HashValue: expectedHash.Value,
 			}
 			if addErr := configManager.AddSkill(ctx, testSkill); addErr != nil {
@@ -294,7 +293,6 @@ func TestHashVerifier_VerifyAll(t *testing.T) {
 						Source:    sources[sourceIdx],
 						URL:       url,
 						Version:   "v1.0.0",
-						HashAlgo:  hashes[i].Algorithm,
 						HashValue: hashes[i].Value,
 					}
 

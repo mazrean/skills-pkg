@@ -16,14 +16,10 @@ type mockHashService struct{}
 
 func (m *mockHashService) CalculateHash(ctx context.Context, path string) (*port.HashResult, error) {
 	return &port.HashResult{
-		Algorithm: "mock",
 		Value:     "mock-hash-value",
 	}, nil
 }
 
-func (m *mockHashService) HashAlgorithm() string {
-	return "mock"
-}
 
 // mockPackageManager is a mock implementation of port.PackageManager for testing
 type mockPackageManager struct {

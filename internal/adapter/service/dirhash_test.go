@@ -32,9 +32,6 @@ func TestDirhash_CalculateHash(t *testing.T) {
 				if result == nil {
 					t.Fatal("Expected result, got nil")
 				}
-				if result.Algorithm != "sha256" {
-					t.Errorf("Expected algorithm 'sha256', got '%s'", result.Algorithm)
-				}
 				if result.Value == "" {
 					t.Error("Expected non-empty hash value")
 				}
@@ -184,27 +181,6 @@ func TestDirhash_CalculateHash(t *testing.T) {
 	}
 }
 
-// TestDirhash_HashAlgorithm tests the HashAlgorithm method
-func TestDirhash_HashAlgorithm(t *testing.T) {
-	tests := []struct {
-		name string
-		want string
-	}{
-		{
-			name: "should return sha256",
-			want: "sha256",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc := NewDirhash()
-			if got := svc.HashAlgorithm(); got != tt.want {
-				t.Errorf("Expected algorithm %q, got %q", tt.want, got)
-			}
-		})
-	}
-}
 
 // TestDirhash_ImplementsInterface verifies that Dirhash implements HashService
 func TestDirhash_ImplementsInterface(t *testing.T) {

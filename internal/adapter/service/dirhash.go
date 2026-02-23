@@ -50,13 +50,6 @@ func (s *Dirhash) CalculateHash(ctx context.Context, dirPath string) (*port.Hash
 
 	// HashDir returns format "h1:<base64>" - we use this as-is for consistency with Go module ecosystem
 	return &port.HashResult{
-		Algorithm: "sha256",
-		Value:     hashValue,
+		Value: hashValue,
 	}, nil
-}
-
-// HashAlgorithm returns the hash algorithm name used by this service.
-// Requirements: 5.1, 5.2
-func (s *Dirhash) HashAlgorithm() string {
-	return "sha256"
 }

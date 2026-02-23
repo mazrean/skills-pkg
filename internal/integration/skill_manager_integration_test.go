@@ -63,7 +63,6 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 					Source:    "git",
 					URL:       filepath.Dir(configPath) + "/test-repo",
 					Version:   "main",
-					HashAlgo:  "sha256",
 					HashValue: "",
 				}
 
@@ -109,10 +108,6 @@ func TestSkillManagerAdapterIntegration(t *testing.T) {
 
 				if installedSkill.HashValue == "" {
 					t.Error("Hash value was not calculated")
-				}
-
-				if installedSkill.HashAlgo != "sha256" {
-					t.Errorf("Expected hash algorithm sha256, got %s", installedSkill.HashAlgo)
 				}
 			},
 		},
@@ -224,7 +219,6 @@ func TestSkillManagerErrorHandling(t *testing.T) {
 					Source:    "unsupported-source",
 					URL:       "https://example.com",
 					Version:   "1.0.0",
-					HashAlgo:  "sha256",
 					HashValue: "",
 				}
 

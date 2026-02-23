@@ -18,8 +18,7 @@ type Skill struct {
 	Source    string `toml:"source"`                 // "git", "go-mod"
 	URL       string `toml:"url"`                    // Git URL, Go module path
 	Version   string `toml:"version,omitempty"`      // Tag, commit hash, or semantic version
-	HashAlgo  string `toml:"hash_algo,omitempty"`    // "sha256"
-	HashValue string `toml:"hash_value,omitempty"`   // Hex-encoded hash
+	HashValue string `toml:"hash_value,omitempty"`   // Hash value with algorithm prefix (e.g., "h1:<base64>")
 	SubDir    string `toml:"subdir,omitempty"`       // Subdirectory within the downloaded source (e.g., "skills/my-agent")
 }
 

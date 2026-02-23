@@ -31,14 +31,10 @@ type mockHashService struct{}
 
 func (m *mockHashService) CalculateHash(ctx context.Context, dirPath string) (*port.HashResult, error) {
 	return &port.HashResult{
-		Algorithm: "sha256",
 		Value:     "mockHash123",
 	}, nil
 }
 
-func (m *mockHashService) HashAlgorithm() string {
-	return "sha256"
-}
 
 // TestNewSkillManager tests the creation of a new SkillManager instance.
 func TestNewSkillManager(t *testing.T) {
@@ -195,14 +191,10 @@ func (m *mockHashServiceWithCustom) CalculateHash(ctx context.Context, dirPath s
 		return m.hashResult, nil
 	}
 	return &port.HashResult{
-		Algorithm: "sha256",
 		Value:     "mockHash123",
 	}, nil
 }
 
-func (m *mockHashServiceWithCustom) HashAlgorithm() string {
-	return "sha256"
-}
 
 type mockPackageManagerMultiSkill struct {
 	sourceType   string
@@ -251,7 +243,6 @@ func TestInstall_SingleSkill(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/example/skill.git",
 				Version:   "v1.0.0",
-				HashAlgo:  "",
 				HashValue: "",
 			},
 		},
@@ -278,7 +269,6 @@ func TestInstall_SingleSkill(t *testing.T) {
 	// Setup mock hash service
 	hashService := &mockHashServiceWithCustom{
 		hashResult: &port.HashResult{
-			Algorithm: "sha256",
 			Value:     "abcd1234",
 		},
 	}
@@ -305,9 +295,6 @@ func TestInstall_SingleSkill(t *testing.T) {
 		t.Fatal("Skill not found in updated config")
 	}
 
-	if skill.HashAlgo != "sha256" {
-		t.Errorf("Expected hash algo 'sha256', got '%s'", skill.HashAlgo)
-	}
 
 	if skill.HashValue != "abcd1234" {
 		t.Errorf("Expected hash value 'abcd1234', got '%s'", skill.HashValue)
@@ -351,7 +338,6 @@ func TestInstall_AllSkills(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/example/skill1.git",
 				Version:   "v1.0.0",
-				HashAlgo:  "",
 				HashValue: "",
 			},
 			{
@@ -359,7 +345,6 @@ func TestInstall_AllSkills(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/example/skill2.git",
 				Version:   "v2.0.0",
-				HashAlgo:  "",
 				HashValue: "",
 			},
 		},
@@ -383,7 +368,6 @@ func TestInstall_AllSkills(t *testing.T) {
 	// Setup mock hash service
 	hashService := &mockHashServiceWithCustom{
 		hashResult: &port.HashResult{
-			Algorithm: "sha256",
 			Value:     "hash123",
 		},
 	}
@@ -548,7 +532,6 @@ func TestUpdate_SingleSkill(t *testing.T) {
 		Source:    "go-mod",
 		URL:       "test-package",
 		Version:   "1.0.0",
-		HashAlgo:  "sha256",
 		HashValue: "oldHash123",
 	}
 	if err := configManager.AddSkill(ctx, skill); err != nil {
@@ -631,7 +614,6 @@ func TestUpdate_AllSkills(t *testing.T) {
 			Source:    "go-mod",
 			URL:       "package1",
 			Version:   "1.0.0",
-			HashAlgo:  "sha256",
 			HashValue: "hash1",
 		},
 		{
@@ -639,7 +621,6 @@ func TestUpdate_AllSkills(t *testing.T) {
 			Source:    "git",
 			URL:       "https://github.com/example/skill2",
 			Version:   "v1.0.0",
-			HashAlgo:  "sha256",
 			HashValue: "hash2",
 		},
 	}
@@ -736,7 +717,6 @@ func TestUpdate_NetworkError(t *testing.T) {
 		Source:    "go-mod",
 		URL:       "test-package",
 		Version:   "1.0.0",
-		HashAlgo:  "sha256",
 		HashValue: "oldHash123",
 	}
 	if err := configManager.AddSkill(ctx, skill); err != nil {
@@ -834,7 +814,6 @@ func TestUninstall_Success(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/example/skill.git",
 				Version:   "v1.0.0",
-				HashAlgo:  "sha256",
 				HashValue: "hash123",
 			},
 		},
@@ -953,7 +932,6 @@ func TestUninstall_RemoveFromAllTargets(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/example/skill.git",
 				Version:   "v1.0.0",
-				HashAlgo:  "sha256",
 				HashValue: "hash123",
 			},
 		},
@@ -1060,9 +1038,6 @@ func TestInstall_WithGoModVersion(t *testing.T) {
 	// This ensures go.mod remains the source of truth
 	if installedSkill.Version != "" {
 		t.Errorf("Expected Version to be empty when using go.mod version, got %s", installedSkill.Version)
-	}
-	if installedSkill.HashAlgo != "" {
-		t.Errorf("Expected HashAlgo to be empty when using go.mod version, got %s", installedSkill.HashAlgo)
 	}
 	if installedSkill.HashValue != "" {
 		t.Errorf("Expected HashValue to be empty when using go.mod version, got %s", installedSkill.HashValue)

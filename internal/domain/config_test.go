@@ -19,7 +19,7 @@ func TestSkill_Validate(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/example/skill.git",
 				Version:   "v1.0.0",
-				HashAlgo:  "sha256",
+				
 				HashValue: "abc123",
 			},
 			wantErr: nil,
@@ -31,7 +31,7 @@ func TestSkill_Validate(t *testing.T) {
 				Source:         "go-mod",
 				URL:            "github.com/example/skill",
 				Version:        "v1.0.0",
-				HashAlgo:       "sha256",
+				
 				HashValue:      "def456",
 			},
 			wantErr: nil,
@@ -43,7 +43,7 @@ func TestSkill_Validate(t *testing.T) {
 				Source:         "go-mod",
 				URL:            "github.com/example/skill",
 				Version:        "v1.0.0",
-				HashAlgo:       "sha256",
+				
 				HashValue:      "ghi789",
 			},
 			wantErr: nil,
@@ -55,7 +55,7 @@ func TestSkill_Validate(t *testing.T) {
 				Source:    "invalid",
 				URL:       "https://example.com",
 				Version:   "1.0.0",
-				HashAlgo:  "sha256",
+				
 				HashValue: "abc123",
 			},
 			wantErr: domain.ErrInvalidSource,
@@ -67,7 +67,7 @@ func TestSkill_Validate(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/example/skill.git",
 				Version:   "v1.0.0",
-				HashAlgo:  "sha256",
+				
 				HashValue: "abc123",
 			},
 			wantErr: domain.ErrInvalidSkill,
@@ -79,7 +79,7 @@ func TestSkill_Validate(t *testing.T) {
 				Source:    "git",
 				URL:       "",
 				Version:   "v1.0.0",
-				HashAlgo:  "sha256",
+				
 				HashValue: "abc123",
 			},
 			wantErr: domain.ErrInvalidSkill,
@@ -187,7 +187,7 @@ func TestConfig_Validate(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/example/skill.git",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
+						
 						HashValue: "abc123",
 					},
 				},
@@ -199,8 +199,8 @@ func TestConfig_Validate(t *testing.T) {
 			name: "duplicate skill names",
 			config: &domain.Config{
 				Skills: []*domain.Skill{
-					{Name: "skill1", Source: "git", URL: "url1", Version: "v1.0.0", HashAlgo: "sha256", HashValue: "abc"},
-					{Name: "skill1", Source: "go-mod", URL: "url2", Version: "v1.0.0", HashAlgo: "sha256", HashValue: "def"},
+					{Name: "skill1", Source: "git", URL: "url1", Version: "v1.0.0", HashValue: "abc"},
+					{Name: "skill1", Source: "go-mod", URL: "url2", Version: "v1.0.0", HashValue: "def"},
 				},
 				InstallTargets: []string{"/path/to/dir"},
 			},
@@ -215,7 +215,7 @@ func TestConfig_Validate(t *testing.T) {
 						Source:    "invalid-source",
 						URL:       "url",
 						Version:   "v1.0.0",
-						HashAlgo:  "sha256",
+						
 						HashValue: "abc",
 					},
 				},
