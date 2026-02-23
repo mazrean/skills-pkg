@@ -8,10 +8,15 @@ package port
 // Requirements: 10.3, 10.4
 type AgentProvider interface {
 	// ResolveAgentDir returns the default install directory for the agent.
-	// Used only when --agent flag is specified during init.
+	// Used only when --agent flag is specified during init with --global.
 	// Returns an error if the agent is not supported.
 	ResolveAgentDir(agentName string) (string, error)
 
 	// AgentName returns the name of the agent (e.g., "claude", "codex").
 	AgentName() string
+
+	// ProjectDir returns the project-level install directory for the agent
+	// (relative to the working directory). Used when --agent is specified
+	// without --global.
+	ProjectDir() string
 }

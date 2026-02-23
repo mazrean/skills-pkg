@@ -117,7 +117,7 @@ func TestInitCmd_Run(t *testing.T) {
 				}
 
 				// Should contain the project-level claude agent directory
-				expectedDir := "./.claude/skills"
+				expectedDir := ".claude/skills"
 				if len(config.InstallTargets) > 0 && config.InstallTargets[0] != expectedDir {
 					t.Errorf("expected install target %s, got %s", expectedDir, config.InstallTargets[0])
 				}
@@ -177,7 +177,7 @@ func TestInitCmd_Run(t *testing.T) {
 				}
 
 				// Should contain both project-level agent directories
-				expectedDirs := []string{"./.claude/skills", "./.codex/skills"}
+				expectedDirs := []string{".claude/skills", ".agents/skills"}
 				for i, expectedDir := range expectedDirs {
 					if i >= len(config.InstallTargets) {
 						t.Errorf("missing install target at index %d", i)
@@ -214,7 +214,7 @@ func TestInitCmd_Run(t *testing.T) {
 				}
 
 				// Should contain the project-level codex agent directory
-				expectedDir := "./.codex/skills"
+				expectedDir := ".agents/skills"
 				if len(config.InstallTargets) > 0 && config.InstallTargets[0] != expectedDir {
 					t.Errorf("expected install target %s, got %s", expectedDir, config.InstallTargets[0])
 				}

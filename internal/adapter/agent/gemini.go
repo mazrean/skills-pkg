@@ -41,3 +41,8 @@ func (a *Gemini) ResolveAgentDir(agentName string) (string, error) {
 func (a *Gemini) AgentName() string {
 	return "gemini"
 }
+
+// ProjectDir returns the project-level install directory for the agent.
+func (a *Gemini) ProjectDir() string {
+	return ".agents/skills"
+}

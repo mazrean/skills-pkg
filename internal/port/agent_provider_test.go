@@ -93,3 +93,7 @@ func (m *mockAgentProvider) ResolveAgentDir(agentName string) (string, error) {
 func (m *mockAgentProvider) AgentName() string {
 	return "mock"
 }
+
+func (m *mockAgentProvider) ProjectDir() string {
+	return ".mock/skills"
+}

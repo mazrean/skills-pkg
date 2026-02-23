@@ -41,3 +41,8 @@ func (a *Copilot) ResolveAgentDir(agentName string) (string, error) {
 func (a *Copilot) AgentName() string {
 	return "copilot"
 }
+
+// ProjectDir returns the project-level install directory for the agent.
+func (a *Copilot) ProjectDir() string {
+	return ".agents/skills"
+}

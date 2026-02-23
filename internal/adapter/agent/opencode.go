@@ -41,3 +41,8 @@ func (a *Opencode) ResolveAgentDir(agentName string) (string, error) {
 func (a *Opencode) AgentName() string {
 	return "opencode"
 }
+
+// ProjectDir returns the project-level install directory for the agent.
+func (a *Opencode) ProjectDir() string {
+	return ".agents/skills"
+}

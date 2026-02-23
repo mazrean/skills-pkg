@@ -20,7 +20,7 @@ const (
 // InitCmd represents the init command
 // Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 12.1, 12.2, 12.3, 12.4
 type InitCmd struct {
-	Agent      []string `help:"Agent name to use default directory (can be specified multiple times)" short:"a" enum:"claude,codex,cursor,copilot,goose,opencode,gemini,amp,factory"`
+	Agent      []string `help:"Agent name to use default directory (can be specified multiple times)" short:"a" enum:"claude,claude-code,codex,cursor,copilot,github-copilot,goose,opencode,gemini,gemini-cli,amp,kimi-cli,replit,universal,factory,droid,antigravity,augment,openclaw,cline,codebuddy,command-code,continue,cortex,crush,junie,iflow-cli,kilo,kiro-cli,kode,mcpjam,mistral-vibe,mux,openhands,pi,qoder,qwen-code,roo,trae,trae-cn,windsurf,zencoder,neovate,pochi,adal"`
 	InstallDir []string `help:"Custom install directory (can be specified multiple times)" short:"d"`
 	Global     bool     `help:"Use user-level directory instead of project-level directory (requires --agent)" short:"g" default:"false"`
 }
@@ -112,29 +112,26 @@ func (c *InitCmd) buildInstallTargets(logger *Logger) ([]string, error) {
 		for _, agent := range c.Agent {
 			logger.Verbose("Resolving agent directory for: %s (global=%v)", agent, c.Global)
 
-			// Validate --global flag usage
+			agentProvider, err := c.getAgentProvider(agent)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get agent provider for %s: %w", agent, err)
+			}
+
+			var agentDir string
 			if c.Global {
 				// Use AgentProvider to resolve user-level directory (requirements 10.3, 10.4)
-				agentProvider, err := c.getAgentProvider(agent)
+				agentDir, err = agentProvider.ResolveAgentDir(agent)
 				if err != nil {
-					// Report unsupported agent error with cause and recommended action (requirements 12.2, 12.3)
-					return nil, fmt.Errorf("failed to get agent provider for %s: %w. Supported agents: claude, codex, cursor, copilot, goose, opencode, gemini, amp, factory", agent, err)
-				}
-
-				agentDir, err := agentProvider.ResolveAgentDir(agent)
-				if err != nil {
-					// Report unsupported agent error with cause and recommended action (requirements 12.2, 12.3)
 					return nil, fmt.Errorf("failed to resolve agent directory for %s: %w", agent, err)
 				}
-
 				logger.Verbose("Resolved user-level agent directory: %s", agentDir)
-				installTargets = append(installTargets, agentDir)
 			} else {
-				// Use project-level agent directory (e.g., ./.claude/skills)
-				agentDir := fmt.Sprintf("./.%s/skills", agent)
+				// Use agent-specific project-level directory
+				agentDir = agentProvider.ProjectDir()
 				logger.Verbose("Using project-level agent directory: %s", agentDir)
-				installTargets = append(installTargets, agentDir)
 			}
+
+			installTargets = append(installTargets, agentDir)
 		}
 	}
 
@@ -149,27 +146,98 @@ func (c *InitCmd) buildInstallTargets(logger *Logger) ([]string, error) {
 }
 
 // getAgentProvider returns the appropriate AgentProvider based on the agent name.
-// Supports all major coding agents: claude, codex, cursor, copilot, goose, opencode, gemini, amp, factory.
 func (c *InitCmd) getAgentProvider(agentName string) (port.AgentProvider, error) {
 	switch agentName {
 	case "claude":
 		return agent.NewClaude(), nil
+	case "claude-code":
+		return agent.NewClaudeCode(), nil
 	case "codex":
 		return agent.NewCodex(), nil
 	case "cursor":
 		return agent.NewCursor(), nil
 	case "copilot":
 		return agent.NewCopilot(), nil
+	case "github-copilot":
+		return agent.NewGithubCopilot(), nil
 	case "goose":
 		return agent.NewGoose(), nil
 	case "opencode":
 		return agent.NewOpencode(), nil
 	case "gemini":
 		return agent.NewGemini(), nil
+	case "gemini-cli":
+		return agent.NewGeminiCLI(), nil
 	case "amp":
 		return agent.NewAmp(), nil
+	case "kimi-cli":
+		return agent.NewKimiCLI(), nil
+	case "replit":
+		return agent.NewReplit(), nil
+	case "universal":
+		return agent.NewUniversal(), nil
 	case "factory":
 		return agent.NewFactory(), nil
+	case "droid":
+		return agent.NewDroid(), nil
+	case "antigravity":
+		return agent.NewAntigravity(), nil
+	case "augment":
+		return agent.NewAugment(), nil
+	case "openclaw":
+		return agent.NewOpenclaw(), nil
+	case "cline":
+		return agent.NewCline(), nil
+	case "codebuddy":
+		return agent.NewCodebuddy(), nil
+	case "command-code":
+		return agent.NewCommandCode(), nil
+	case "continue":
+		return agent.NewContinueAgent(), nil
+	case "cortex":
+		return agent.NewCortex(), nil
+	case "crush":
+		return agent.NewCrush(), nil
+	case "junie":
+		return agent.NewJunie(), nil
+	case "iflow-cli":
+		return agent.NewIflowCLI(), nil
+	case "kilo":
+		return agent.NewKilo(), nil
+	case "kiro-cli":
+		return agent.NewKiroCLI(), nil
+	case "kode":
+		return agent.NewKode(), nil
+	case "mcpjam":
+		return agent.NewMCPJam(), nil
+	case "mistral-vibe":
+		return agent.NewMistralVibe(), nil
+	case "mux":
+		return agent.NewMux(), nil
+	case "openhands":
+		return agent.NewOpenhands(), nil
+	case "pi":
+		return agent.NewPi(), nil
+	case "qoder":
+		return agent.NewQoder(), nil
+	case "qwen-code":
+		return agent.NewQwenCode(), nil
+	case "roo":
+		return agent.NewRoo(), nil
+	case "trae":
+		return agent.NewTrae(), nil
+	case "trae-cn":
+		return agent.NewTraeCN(), nil
+	case "windsurf":
+		return agent.NewWindsurf(), nil
+	case "zencoder":
+		return agent.NewZencoder(), nil
+	case "neovate":
+		return agent.NewNeovate(), nil
+	case "pochi":
+		return agent.NewPochi(), nil
+	case "adal":
+		return agent.NewAdal(), nil
 	default:
 		return nil, fmt.Errorf("unsupported agent: %s", agentName)
 	}
