@@ -571,10 +571,10 @@ func (a *GoMod) downloadDirect(ctx context.Context, modulePath, version, targetD
 
 	var cloneErr error
 	for _, refName := range refNames {
-		if err := os.RemoveAll(cloneDir); err != nil {
+		if err = os.RemoveAll(cloneDir); err != nil {
 			return fmt.Errorf("failed to clean temporary directory: %w", err)
 		}
-		if err := os.MkdirAll(cloneDir, dirPerms); err != nil {
+		if err = os.MkdirAll(cloneDir, dirPerms); err != nil {
 			return fmt.Errorf("failed to recreate temporary directory: %w", err)
 		}
 		_, cloneErr = git.PlainCloneContext(ctx, cloneDir, false, &git.CloneOptions{
