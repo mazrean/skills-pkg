@@ -143,14 +143,20 @@ func (a *Git) createTempDir() (string, error) {
 // cloneRepository clones a Git repository from the given URL to the target directory.
 // Requirements: 3.1, 3.5, 12.2, 12.3
 func (a *Git) cloneRepository(ctx context.Context, url, targetDir string) (*git.Repository, error) {
+	auth, err := buildAuthMethod(url)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrNetworkFailure, err)
+	}
+
 	repo, err := git.PlainCloneContext(ctx, targetDir, false, &git.CloneOptions{
 		URL:      url,
-		Progress: nil, // We could add progress reporting here in the future
+		Auth:     auth,
+		Progress: nil,
 	})
 	if err != nil {
 		// Classify the error for better user feedback
 		if strings.Contains(err.Error(), "authentication required") {
-			return nil, fmt.Errorf("%w: failed to clone repository %s: authentication required. Please check your credentials and ensure you have access to the repository", domain.ErrNetworkFailure, url)
+			return nil, fmt.Errorf("%w: failed to clone repository %s: authentication required. Set GIT_TOKEN, GITHUB_TOKEN, or GIT_USERNAME/GIT_PASSWORD environment variables for HTTPS, or ensure SSH credentials are configured", domain.ErrNetworkFailure, url)
 		}
 		if strings.Contains(err.Error(), "repository not found") {
 			return nil, fmt.Errorf("%w: failed to clone repository %s: repository not found. Please verify the URL is correct", domain.ErrNetworkFailure, url)
