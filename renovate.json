@@ -1,49 +1,90 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "assignees": [
+    "@mazrean"
+  ],
+  "commitMessagePrefix": "chore(deps):",
+  "customManagers": [
+    {
+      "customType": "jsonata",
+      "fileFormat": "toml",
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "semver-coerced",
+      "managerFilePatterns": [
+        "(^|/)\\.skillspkg\\.toml$"
+      ],
+      "matchStrings": [
+        "skills[source = \"git\" and $startsWith(url, \"https://github.com/\")].{\"depName\": $replace($substringAfter(url, \"https://github.com/\"), /\\.git$/, \"\"), \"currentValue\": version}"
+      ]
+    }
+  ],
   "extends": [
     "config:recommended",
     ":dependencyDashboard"
   ],
-  "semanticCommits": "enabled",
-  "commitMessagePrefix": "chore(deps):",
-  "labels": ["dependencies"],
-  "assignees": ["@mazrean"],
-  "reviewers": ["@mazrean"],
-  "schedule": ["before 4am on Monday"],
-  "timezone": "Asia/Tokyo",
-  "prConcurrentLimit": 10,
-  "vulnerabilityAlerts": {
-    "labels": ["security"],
-    "assignees": ["@mazrean"]
+  "golang": {
+    "minimumReleaseAge": "3 days"
   },
+  "labels": [
+    "dependencies"
+  ],
   "packageRules": [
     {
       "description": "Group all Go dependencies",
-      "matchDatasources": ["go"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchDatasources": [
+        "go"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "groupName": "all Go dependencies"
     },
     {
       "description": "Group all GitHub Actions dependencies",
-      "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "groupName": "all GitHub Actions dependencies"
     },
     {
       "description": "Separate PR for major updates",
-      "matchUpdateTypes": ["major"],
+      "matchUpdateTypes": [
+        "major"
+      ],
       "groupName": null,
       "automerge": false
     },
     {
       "description": "Auto-merge patch and minor updates",
-      "matchUpdateTypes": ["patch", "minor"],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
       "automerge": false,
       "automergeType": "pr",
       "platformAutomerge": false
     }
   ],
-  "golang": {
-    "minimumReleaseAge": "3 days"
+  "prConcurrentLimit": 10,
+  "reviewers": [
+    "@mazrean"
+  ],
+  "schedule": [
+    "before 4am on Monday"
+  ],
+  "semanticCommits": "enabled",
+  "timezone": "Asia/Tokyo",
+  "vulnerabilityAlerts": {
+    "labels": [
+      "security"
+    ],
+    "assignees": [
+      "@mazrean"
+    ]
   }
 }
