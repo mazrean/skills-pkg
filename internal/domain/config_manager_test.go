@@ -22,9 +22,9 @@ func TestConfigManager_Initialize(t *testing.T) {
 		setupFile      bool
 	}{
 		{
-			name:        "successfully creates new config file",
-			setupFile:   false,
-			installDirs: []string{"~/.claude/skills", "~/.codex/skills"},
+			name:         "successfully creates new config file",
+			setupFile:    false,
+			installDirs:  []string{"~/.claude/skills", "~/.codex/skills"},
 			wantErrCheck: nil,
 			validateConfig: func(t *testing.T, configPath string) {
 				// Check that the file was created
@@ -65,9 +65,9 @@ func TestConfigManager_Initialize(t *testing.T) {
 			},
 		},
 		{
-			name:        "successfully creates config with empty install dirs",
-			setupFile:   false,
-			installDirs: []string{},
+			name:         "successfully creates config with empty install dirs",
+			setupFile:    false,
+			installDirs:  []string{},
 			wantErrCheck: nil,
 			validateConfig: func(t *testing.T, configPath string) {
 				if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -157,10 +157,10 @@ func TestConfigManager_Initialize(t *testing.T) {
 func TestConfigManager_Load(t *testing.T) {
 	tests := []struct {
 		validate    func(t *testing.T, config *domain.Config)
+		errCheck    func(t *testing.T, err error, configPath string)
 		name        string
 		fileContent string
 		setupFile   bool
-		errCheck    func(t *testing.T, err error, configPath string)
 	}{
 		{
 			name:      "successfully loads valid config file",
@@ -445,7 +445,7 @@ func TestConfigManager_AddSkill(t *testing.T) {
 		setupConfig  *domain.Config
 		skill        *domain.Skill
 		validate     func(t *testing.T, config *domain.Config)
-		name        string
+		name         string
 	}{
 		{
 			name: "successfully adds git skill",
