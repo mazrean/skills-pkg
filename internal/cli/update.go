@@ -17,9 +17,9 @@ import (
 
 // UpdateCmd represents the update command
 type UpdateCmd struct {
+	Output string   `help:"Output format (text, json)" default:"text" enum:"text,json"`
 	Skills []string `arg:"" optional:"" help:"Skill names to update (if not specified, updates all skills to their latest versions)"`
 	DryRun bool     `help:"Show what would be updated without making changes" name:"dry-run"`
-	Output string   `help:"Output format (text, json)" default:"text" enum:"text,json"`
 }
 
 // Run executes the update command
@@ -111,11 +111,11 @@ type dryRunOutput struct {
 }
 
 type dryRunItem struct {
-	SkillName      string          `json:"skill_name"`
-	CurrentVersion string          `json:"current_version"`
-	LatestVersion  string          `json:"latest_version"`
-	HasUpdate      bool            `json:"has_update"`
+	SkillName      string            `json:"skill_name"`
+	CurrentVersion string            `json:"current_version"`
+	LatestVersion  string            `json:"latest_version"`
 	FileDiffs      []*dryRunFileDiff `json:"file_diffs,omitempty"`
+	HasUpdate      bool              `json:"has_update"`
 }
 
 type dryRunFileDiff struct {

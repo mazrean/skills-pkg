@@ -603,6 +603,8 @@ func lineDiff(oldContent, newContent string) string {
 			prefix = "+"
 		case diffmatchpatch.DiffDelete:
 			prefix = "-"
+		case diffmatchpatch.DiffEqual:
+			// prefix remains " "
 		}
 		for _, line := range strings.SplitAfter(d.Text, "\n") {
 			if line == "" {
