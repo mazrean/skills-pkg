@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/mazrean/skills-pkg/internal/domain"
@@ -8,9 +9,9 @@ import (
 
 func TestSkill_Validate(t *testing.T) {
 	tests := []struct {
-		wantErr error
-		skill   *domain.Skill
-		name    string
+		wantErrCheck func(error) bool
+		skill        *domain.Skill
+		name         string
 	}{
 		{
 			name: "valid git source skill",
@@ -19,10 +20,10 @@ func TestSkill_Validate(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/example/skill.git",
 				Version:   "v1.0.0",
-				
+
 				HashValue: "abc123",
 			},
-			wantErr: nil,
+			wantErrCheck: nil,
 		},
 		{
 			name: "valid go-mod source skill",
@@ -31,10 +32,10 @@ func TestSkill_Validate(t *testing.T) {
 				Source:         "go-mod",
 				URL:            "github.com/example/skill",
 				Version:        "v1.0.0",
-				
+
 				HashValue:      "def456",
 			},
-			wantErr: nil,
+			wantErrCheck: nil,
 		},
 		{
 			name: "valid go-mod source skill",
@@ -43,10 +44,10 @@ func TestSkill_Validate(t *testing.T) {
 				Source:         "go-mod",
 				URL:            "github.com/example/skill",
 				Version:        "v1.0.0",
-				
+
 				HashValue:      "ghi789",
 			},
-			wantErr: nil,
+			wantErrCheck: nil,
 		},
 		{
 			name: "invalid source type",
@@ -55,10 +56,13 @@ func TestSkill_Validate(t *testing.T) {
 				Source:    "invalid",
 				URL:       "https://example.com",
 				Version:   "1.0.0",
-				
+
 				HashValue: "abc123",
 			},
-			wantErr: domain.ErrInvalidSource,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorInvalidSource](err)
+				return ok
+			},
 		},
 		{
 			name: "empty name",
@@ -67,10 +71,13 @@ func TestSkill_Validate(t *testing.T) {
 				Source:    "git",
 				URL:       "https://github.com/example/skill.git",
 				Version:   "v1.0.0",
-				
+
 				HashValue: "abc123",
 			},
-			wantErr: domain.ErrInvalidSkill,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorInvalidSkill](err)
+				return ok
+			},
 		},
 		{
 			name: "empty URL",
@@ -79,18 +86,27 @@ func TestSkill_Validate(t *testing.T) {
 				Source:    "git",
 				URL:       "",
 				Version:   "v1.0.0",
-				
+
 				HashValue: "abc123",
 			},
-			wantErr: domain.ErrInvalidSkill,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorInvalidSkill](err)
+				return ok
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.skill.Validate()
-			if err != tt.wantErr {
-				t.Errorf("Skill.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErrCheck != nil {
+				if err == nil {
+					t.Error("Skill.Validate() expected error, got nil")
+				} else if !tt.wantErrCheck(err) {
+					t.Errorf("Skill.Validate() error = %v, did not match expected error type", err)
+				}
+			} else if err != nil {
+				t.Errorf("Skill.Validate() unexpected error = %v", err)
 			}
 		})
 	}
@@ -174,9 +190,9 @@ func TestConfig_HasSkill(t *testing.T) {
 
 func TestConfig_Validate(t *testing.T) {
 	tests := []struct {
-		wantErr error
-		config  *domain.Config
-		name    string
+		wantErrCheck func(error) bool
+		config       *domain.Config
+		name         string
 	}{
 		{
 			name: "valid config",
@@ -187,13 +203,13 @@ func TestConfig_Validate(t *testing.T) {
 						Source:    "git",
 						URL:       "https://github.com/example/skill.git",
 						Version:   "v1.0.0",
-						
+
 						HashValue: "abc123",
 					},
 				},
 				InstallTargets: []string{"/path/to/dir"},
 			},
-			wantErr: nil,
+			wantErrCheck: nil,
 		},
 		{
 			name: "duplicate skill names",
@@ -204,7 +220,10 @@ func TestConfig_Validate(t *testing.T) {
 				},
 				InstallTargets: []string{"/path/to/dir"},
 			},
-			wantErr: domain.ErrSkillExists,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorSkillExists](err)
+				return ok
+			},
 		},
 		{
 			name: "invalid skill in config",
@@ -215,21 +234,30 @@ func TestConfig_Validate(t *testing.T) {
 						Source:    "invalid-source",
 						URL:       "url",
 						Version:   "v1.0.0",
-						
+
 						HashValue: "abc",
 					},
 				},
 				InstallTargets: []string{"/path/to/dir"},
 			},
-			wantErr: domain.ErrInvalidSource,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorInvalidSource](err)
+				return ok
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.config.Validate()
-			if err != tt.wantErr {
-				t.Errorf("Config.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErrCheck != nil {
+				if err == nil {
+					t.Error("Config.Validate() expected error, got nil")
+				} else if !tt.wantErrCheck(err) {
+					t.Errorf("Config.Validate() error = %v, did not match expected error type", err)
+				}
+			} else if err != nil {
+				t.Errorf("Config.Validate() unexpected error = %v", err)
 			}
 		})
 	}

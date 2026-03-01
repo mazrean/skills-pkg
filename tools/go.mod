@@ -17,7 +17,6 @@ require (
 	github.com/tdakkota/asciicheck v0.4.1
 	github.com/timakin/bodyclose v0.0.0-20260129054331-73d1f95b84b4
 	github.com/tommy-muehle/go-mnd/v2 v2.5.1
-	github.com/uudashr/iface v1.4.1
 	golang.org/x/tools v0.42.0
 )
 
@@ -59,7 +58,8 @@ require (
 	github.com/go-toolsmith/strparse v1.1.0 // indirect
 	github.com/go-toolsmith/typep v1.1.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/go-github/v80 v80.0.0 // indirect
+	github.com/google/go-github/v83 v83.0.0 // indirect
+	github.com/goreleaser/go-shellwords v1.0.13 // indirect
 	github.com/goreleaser/quill v0.0.0-20251224035235-ab943733386f // indirect
 	github.com/gostaticanalysis/analysisutil v0.7.1 // indirect
 	github.com/gostaticanalysis/comment v1.5.0 // indirect
@@ -70,6 +70,7 @@ require (
 	github.com/quasilyte/gogrep v0.5.0 // indirect
 	github.com/quasilyte/regex/syntax v0.0.0-20210819130434-b3f0c404a727 // indirect
 	github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567 // indirect
+	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
 	github.com/sigstore/rekor-tiles/v2 v2.0.1 // indirect
 	github.com/sigstore/timestamp-authority/v2 v2.0.3 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
@@ -78,7 +79,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20251023183803-a4bb9ffd2546 // indirect
-	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
 	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 )
 
@@ -160,7 +160,6 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/caarlos0/env/v11 v11.3.1 // indirect
 	github.com/caarlos0/go-reddit/v3 v3.0.1 // indirect
-	github.com/caarlos0/go-shellwords v1.0.12 // indirect
 	github.com/caarlos0/go-version v0.2.2 // indirect
 	github.com/caarlos0/log v0.6.0 // indirect
 	github.com/carlmjohnson/versioninfo v0.22.5 // indirect

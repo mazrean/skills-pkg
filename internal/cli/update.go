@@ -34,13 +34,13 @@ func (c *UpdateCmd) Run(ctx *kong.Context) error {
 		}
 	}
 
-	return c.run(defaultConfigPath, verbose, c.DryRun, c.Output)
+	return c.run(defaultConfigPath, verbose)
 }
 
 // run is the internal implementation that can be called from tests with custom parameters
 // This method updates skills to their latest versions.
 // Requirements: 7.1, 7.2, 7.6, 12.1, 12.2, 12.3
-func (c *UpdateCmd) run(configPath string, verbose bool, dryRun bool, output string) error {
+func (c *UpdateCmd) run(configPath string, verbose bool) error {
 	// Create logger with verbose setting (requirement 12.4)
 	logger := NewLogger(verbose)
 
@@ -59,50 +59,32 @@ func (c *UpdateCmd) run(configPath string, verbose bool, dryRun bool, output str
 	// Create SkillManager
 	skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
 
-	if dryRun {
-		return c.runDryRun(logger, skillManager, configPath, output)
-	}
-
 	// Display progress information (requirement 12.1)
-	if len(c.Skills) == 0 {
-		logger.Info("Updating all skills to latest versions")
+	if c.DryRun {
+		logger.Verbose("Checking for updates for skills: %v", c.Skills)
 	} else {
 		logger.Info("Updating skills: %v", c.Skills)
 	}
 
 	// Determine what to update (requirements 7.1, 7.2)
-	if len(c.Skills) == 0 {
-		// Update all skills (requirement 7.1)
-		logger.Verbose("Updating all skills")
-		results, err := skillManager.Update(context.Background(), "", false)
-		if err != nil {
-			c.handleUpdateError(logger, "", configPath, err)
-			return err
-		}
-		if len(results) > 0 {
-			// Display update result (requirement 7.6)
-			logger.Info("Successfully updated all skills")
-		}
-	} else {
-		// Update specific skills (requirement 7.2)
-		for _, skillName := range c.Skills {
-			logger.Verbose("Updating skill: %s", skillName)
-			results, err := skillManager.Update(context.Background(), skillName, false)
-			if err != nil {
-				c.handleUpdateError(logger, skillName, configPath, err)
-				return err
-			}
-			for _, result := range results {
-				// Display update result (requirement 7.6)
-				logger.Info("Successfully updated skill '%s' from %s to %s", result.SkillName, result.OldVersion, result.NewVersion)
-			}
-		}
+	var allResults []*domain.UpdateResult
+
+	results, err := skillManager.Update(context.Background(), c.Skills, c.DryRun)
+	if err != nil {
+		c.handleUpdateError(logger, err)
+		return err
 	}
+	allResults = append(allResults, results...)
 
 	// Success message (requirement 12.1)
 	logger.Info("Update complete")
 
-	return nil
+	switch c.Output {
+	case "json":
+		return c.printDryRunJSON(logger, allResults)
+	default:
+		return c.printDryRunText(logger, allResults)
+	}
 }
 
 // dryRunOutput is the JSON-serializable structure for dry-run results.
@@ -122,43 +104,6 @@ type dryRunFileDiff struct {
 	Path   string `json:"path"`
 	Status string `json:"status"`
 	Patch  string `json:"patch,omitempty"`
-}
-
-// runDryRun checks for available updates and displays the diff without applying changes.
-func (c *UpdateCmd) runDryRun(logger *Logger, skillManager domain.SkillManager, configPath string, output string) error {
-	if len(c.Skills) == 0 {
-		logger.Verbose("Checking for updates for all skills")
-	} else {
-		logger.Verbose("Checking for updates for skills: %v", c.Skills)
-	}
-
-	// Collect results via Update with dryRun=true
-	var allResults []*domain.UpdateResult
-
-	if len(c.Skills) == 0 {
-		results, err := skillManager.Update(context.Background(), "", true)
-		if err != nil {
-			c.handleUpdateError(logger, "", configPath, err)
-			return err
-		}
-		allResults = results
-	} else {
-		for _, skillName := range c.Skills {
-			results, err := skillManager.Update(context.Background(), skillName, true)
-			if err != nil {
-				c.handleUpdateError(logger, skillName, configPath, err)
-				return err
-			}
-			allResults = append(allResults, results...)
-		}
-	}
-
-	switch output {
-	case "json":
-		return c.printDryRunJSON(logger, allResults)
-	default:
-		return c.printDryRunText(logger, allResults)
-	}
 }
 
 // printDryRunText prints human-readable dry-run results.
@@ -223,39 +168,46 @@ func (c *UpdateCmd) printDryRunJSON(logger *Logger, results []*domain.UpdateResu
 		})
 	}
 
-	out := &dryRunOutput{Updates: items}
-	data, err := json.MarshalIndent(out, "", "  ")
+	data, err := json.MarshalIndent(dryRunOutput{Updates: items}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON output: %w", err)
 	}
+	_, err = fmt.Fprintln(logger.out, string(data))
+	if err != nil {
+		return fmt.Errorf("failed to write JSON output: %w", err)
+	}
 
-	logger.Info("%s", string(data))
 	return nil
 }
 
 // handleUpdateError handles different types of errors that can occur during skill update.
 // It provides appropriate error messages with causes and recommended actions.
 // Requirements: 12.2, 12.3
-func (c *UpdateCmd) handleUpdateError(logger *Logger, skillName string, configPath string, err error) {
+func (c *UpdateCmd) handleUpdateError(logger *Logger, err error) {
 	// Configuration file not found
-	if errors.Is(err, domain.ErrConfigNotFound) {
-		logger.Error("Configuration file not found at %s", configPath)
+	if err, ok := errors.AsType[*domain.ErrorConfigNotFound](err); ok {
+		logger.Error("Configuration file not found at %s", err.Path)
 		logger.Error("Run 'skills-pkg init' to create a configuration file")
 		return
 	}
 
 	// Skill not found in configuration
-	if errors.Is(err, domain.ErrSkillNotFound) {
-		logger.Error("Skill '%s' not found in configuration", skillName)
-		logger.Error("Use 'skills-pkg add %s --source <type> --url <url>' to add it first", skillName)
+	if err, ok := errors.AsType[*domain.ErrorSkillsNotFound](err); ok {
+		quatedNames := make([]string, 0, len(err.SkillNames))
+		for _, name := range err.SkillNames {
+			quatedNames = append(quatedNames, fmt.Sprintf("'%s'", name))
+		}
+
+		logger.Error("Skills '%s' not found in configuration", strings.Join(quatedNames, ", "))
+		if len(err.SkillNames) == 1 {
+			logger.Error("Use 'skills-pkg add %s --source <type> --url <url>' to add it first", err.SkillNames[0])
+		} else {
+			logger.Error("Use 'skills-pkg add <skill-name> --source <type> --url <url>' to add them first")
+		}
 		return
 	}
 
 	// Network, file system, or other errors - distinguish and report (requirements 12.2, 12.3)
-	if skillName == "" {
-		logger.Error("Failed to update skills: %v", err)
-	} else {
-		logger.Error("Failed to update skill '%s': %v", skillName, err)
-	}
+	logger.Error("Failed to update skills: %v", err)
 	logger.Error("Check network connection, file permissions, and try again")
 }

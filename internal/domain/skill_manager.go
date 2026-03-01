@@ -34,9 +34,9 @@ type SkillManager interface {
 	// This is useful when you want to add a skill to the config and install it in one operation.
 	InstallSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) error
 
-	// Update updates the specified skill. If skillName is empty, updates all skills.
+	// Update updates the specified skill. If skillNames is empty, updates all skills.
 	// When dryRun is true, only checks for available updates without applying changes.
-	Update(ctx context.Context, skillName string, dryRun bool) ([]*UpdateResult, error)
+	Update(ctx context.Context, skillNames []string, dryRun bool) ([]*UpdateResult, error)
 
 	// Uninstall removes the specified skill.
 	Uninstall(ctx context.Context, skillName string) error
@@ -62,10 +62,10 @@ type FileDiff struct {
 // It contains information about the old and new versions.
 // Requirements: 7.6
 type UpdateResult struct {
-	SkillName  string       // Name of the updated skill
-	OldVersion string       // Previous version
-	NewVersion string       // New version after update
-	FileDiffs  []*FileDiff  // File-level diffs (populated in dry-run mode only)
+	SkillName  string      // Name of the updated skill
+	OldVersion string      // Previous version
+	NewVersion string      // New version after update
+	FileDiffs  []*FileDiff // File-level diffs (populated in dry-run mode only)
 }
 
 // skillManagerImpl is the concrete implementation of SkillManager.
@@ -99,7 +99,7 @@ func NewSkillManager(
 func (s *skillManagerImpl) selectPackageManager(sourceType string) (port.PackageManager, error) {
 	// Validate that source type is not empty
 	if sourceType == "" {
-		return nil, fmt.Errorf("%w: source type is empty. Supported types: git, go-mod", ErrInvalidSource)
+		return nil, &ErrorInvalidSource{SourceType: ""}
 	}
 
 	// Find the package manager that matches the source type
@@ -110,7 +110,7 @@ func (s *skillManagerImpl) selectPackageManager(sourceType string) (port.Package
 	}
 
 	// No matching package manager found
-	return nil, fmt.Errorf("%w: source type '%s' is not supported. Supported types: git, go-mod", ErrInvalidSource, sourceType)
+	return nil, &ErrorInvalidSource{SourceType: sourceType}
 }
 
 // Install installs the specified skill.
@@ -134,7 +134,7 @@ func (s *skillManagerImpl) Install(ctx context.Context, skillName string) error 
 		skill := config.FindSkillByName(skillName)
 		if skill == nil {
 			// Requirement 6.3, 12.2, 12.3
-			return fmt.Errorf("%w: skill '%s' not found in configuration. Use 'skills-pkg add %s --source <type> --url <url>' to add it first", ErrSkillNotFound, skillName, skillName)
+			return &ErrorSkillsNotFound{SkillNames: []string{skillName}}
 		}
 		skillsToInstall = []*Skill{skill}
 	}
@@ -387,7 +387,7 @@ func (s *skillManagerImpl) InstallSingleSkill(ctx context.Context, config *Confi
 // If skillName is empty, it updates all skills from the configuration.
 // When dryRun is true, only checks for available updates without applying any changes.
 // Requirements: 5.3, 7.1, 7.2, 7.5, 7.6, 12.1, 12.2, 12.3
-func (s *skillManagerImpl) Update(ctx context.Context, skillName string, dryRun bool) ([]*UpdateResult, error) {
+func (s *skillManagerImpl) Update(ctx context.Context, skillNames []string, dryRun bool) ([]*UpdateResult, error) {
 	// Load configuration (Requirement 7.1)
 	config, err := s.configManager.Load(ctx)
 	if err != nil {
@@ -396,38 +396,30 @@ func (s *skillManagerImpl) Update(ctx context.Context, skillName string, dryRun 
 
 	// Determine which skills to update (Requirements 7.1, 7.2)
 	var skillsToUpdate []*Skill
-	if skillName == "" {
-		// Update all skills (Requirement 7.1)
-		skillsToUpdate = config.Skills
-	} else {
-		// Update specific skill (Requirement 7.2)
+	for _, skillName := range skillNames {
 		skill := config.FindSkillByName(skillName)
 		if skill == nil {
 			// Requirement 12.2, 12.3
-			return nil, fmt.Errorf("%w: skill '%s' not found in configuration", ErrSkillNotFound, skillName)
+			return nil, &ErrorSkillsNotFound{SkillNames: []string{skillName}}
 		}
-		skillsToUpdate = []*Skill{skill}
+		skillsToUpdate = append(skillsToUpdate, skill)
+	}
+	if len(skillNames) == 0 {
+		// Update all skills (Requirement 7.1)
+		skillsToUpdate = config.Skills
 	}
 
 	// Process skills concurrently using errgroup
 	results := make([]*UpdateResult, len(skillsToUpdate))
 	eg, egCtx := errgroup.WithContext(ctx)
-
 	for i, skill := range skillsToUpdate {
 		eg.Go(func() error {
-			if dryRun {
-				result, err := s.checkSingleSkillUpdate(egCtx, config, skill)
-				if err != nil {
-					return err
-				}
-				results[i] = result
-			} else {
-				result, err := s.updateSingleSkill(egCtx, config, skill)
-				if err != nil {
-					return err
-				}
-				results[i] = result
+			result, err := s.updateSingleSkill(egCtx, config, skill, dryRun)
+			if err != nil {
+				return err
 			}
+			results[i] = result
+
 			return nil
 		})
 	}
@@ -447,12 +439,53 @@ func (s *skillManagerImpl) Update(ctx context.Context, skillName string, dryRun 
 	return results, nil
 }
 
+// updateSingleSkill updates a single skill to the latest version.
+// If saveConfig is true, saves the configuration after updating skill metadata.
+// Requirements: 5.3, 7.1, 7.2, 7.5, 7.6, 12.1, 12.2, 12.3
+func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config, skill *Skill, dryRun bool) (*UpdateResult, error) {
+	updateResult, newPath, err := s.checkSingleSkillUpdate(ctx, config, skill)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check single skill update for skill '%s': %w", skill.Name, err)
+	}
+
+	if dryRun {
+		// In dry-run mode, we only check for updates and return the result without applying changes
+		return updateResult, nil
+	}
+
+	// Calculate hash only if not from go.mod (Requirement 5.3, 7.5)
+	// When version is resolved from go.mod, rely on go.sum for integrity verification
+	if skill.Version != "" {
+		// Update version
+		skill.Version = updateResult.NewVersion
+
+		hashResult, err := s.hashService.CalculateHash(ctx, newPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
+		}
+		skill.HashValue = hashResult.Value
+	}
+
+	// Get install targets
+	installTargets := config.InstallTargets
+	if len(installTargets) > 0 {
+		// Install to all targets (Requirements 10.2, 10.5)
+		if err := s.copySkillToTargets(newPath, skill.Name, installTargets); err != nil {
+			// Filesystem error handling (Requirement 12.2, 12.3)
+			return nil, fmt.Errorf("failed to copy updated skill '%s' to install targets: %w. Check file permissions", skill.Name, err)
+		}
+	}
+
+	// Return update result (Requirement 7.6)
+	return updateResult, nil
+}
+
 // checkSingleSkillUpdate checks the latest available version for a single skill,
 // downloads it, and computes file-level diffs against the currently installed files.
-func (s *skillManagerImpl) checkSingleSkillUpdate(ctx context.Context, config *Config, skill *Skill) (*UpdateResult, error) {
+func (s *skillManagerImpl) checkSingleSkillUpdate(ctx context.Context, config *Config, skill *Skill) (*UpdateResult, string, error) {
 	pm, err := s.selectPackageManager(skill.Source)
 	if err != nil {
-		return nil, fmt.Errorf("failed to select package manager for skill '%s': %w", skill.Name, err)
+		return nil, "", fmt.Errorf("failed to select package manager for skill '%s': %w", skill.Name, err)
 	}
 
 	source := &port.Source{
@@ -463,18 +496,18 @@ func (s *skillManagerImpl) checkSingleSkillUpdate(ctx context.Context, config *C
 	latestVersion, err := pm.GetLatestVersion(ctx, source)
 	if err != nil {
 		if IsNetworkError(err) {
-			return nil, fmt.Errorf("failed to get latest version for skill '%s': %w. Check your network connection and source URL", skill.Name, err)
+			return nil, "", fmt.Errorf("failed to get latest version for skill '%s': %w. Check your network connection and source URL", skill.Name, err)
 		}
-		return nil, fmt.Errorf("failed to get latest version for skill '%s': %w", skill.Name, err)
+		return nil, "", fmt.Errorf("failed to get latest version for skill '%s': %w", skill.Name, err)
 	}
 
 	// Download the latest version to compute file diffs
 	downloadResult, err := pm.Download(ctx, source, latestVersion)
 	if err != nil {
 		if IsNetworkError(err) {
-			return nil, fmt.Errorf("failed to download skill '%s': %w. Check your network connection and source URL", skill.Name, err)
+			return nil, "", fmt.Errorf("failed to download skill '%s': %w. Check your network connection and source URL", skill.Name, err)
 		}
-		return nil, fmt.Errorf("failed to download skill '%s': %w", skill.Name, err)
+		return nil, "", fmt.Errorf("failed to download skill '%s': %w", skill.Name, err)
 	}
 
 	newPath := downloadResult.Path
@@ -482,24 +515,31 @@ func (s *skillManagerImpl) checkSingleSkillUpdate(ctx context.Context, config *C
 		newPath = filepath.Join(downloadResult.Path, skill.SubDir)
 		if _, statErr := os.Stat(newPath); statErr != nil {
 			if os.IsNotExist(statErr) {
-				return nil, fmt.Errorf("subdirectory '%s' not found in downloaded skill '%s'", skill.SubDir, skill.Name)
+				return nil, "", fmt.Errorf("subdirectory '%s' not found in downloaded skill '%s'", skill.SubDir, skill.Name)
 			}
-			return nil, fmt.Errorf("failed to access subdirectory '%s' in skill '%s': %w", skill.SubDir, skill.Name, statErr)
+			return nil, "", fmt.Errorf("failed to access subdirectory '%s' in skill '%s': %w", skill.SubDir, skill.Name, statErr)
 		}
+	}
+
+	if len(config.InstallTargets) == 0 {
+		return &UpdateResult{
+			SkillName:  skill.Name,
+			OldVersion: skill.Version,
+			NewVersion: downloadResult.Version,
+			FileDiffs:  nil, // No install targets to compare against
+		}, newPath, nil
 	}
 
 	// Resolve installed path from the first install target
 	oldPath := ""
-	if len(config.InstallTargets) > 0 {
-		candidate := filepath.Join(config.InstallTargets[0], skill.Name)
-		if _, statErr := os.Stat(candidate); statErr == nil {
-			oldPath = candidate
-		}
+	candidate := filepath.Join(config.InstallTargets[0], skill.Name)
+	if _, statErr := os.Stat(candidate); statErr == nil {
+		oldPath = candidate
 	}
 
 	fileDiffs, err := computeFileDiffs(oldPath, newPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute file diffs for skill '%s': %w", skill.Name, err)
+		return nil, "", fmt.Errorf("failed to compute file diffs for skill '%s': %w", skill.Name, err)
 	}
 
 	return &UpdateResult{
@@ -507,7 +547,7 @@ func (s *skillManagerImpl) checkSingleSkillUpdate(ctx context.Context, config *C
 		OldVersion: skill.Version,
 		NewVersion: downloadResult.Version,
 		FileDiffs:  fileDiffs,
-	}, nil
+	}, newPath, nil
 }
 
 // computeFileDiffs returns the file-level diff between oldDir and newDir.
@@ -616,108 +656,6 @@ func lineDiff(oldContent, newContent string) string {
 	return sb.String()
 }
 
-// updateSingleSkill updates a single skill to the latest version.
-// If saveConfig is true, saves the configuration after updating skill metadata.
-// Requirements: 5.3, 7.1, 7.2, 7.5, 7.6, 12.1, 12.2, 12.3
-func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config, skill *Skill) (*UpdateResult, error) {
-	// Record old version (Requirement 7.6)
-	oldVersion := skill.Version
-
-	// Progress information (Requirement 12.1)
-	fmt.Printf("Updating skill '%s' from version %s...\n", skill.Name, oldVersion)
-
-	// Select appropriate package manager (Requirement 11.4)
-	pm, err := s.selectPackageManager(skill.Source)
-	if err != nil {
-		return nil, fmt.Errorf("failed to select package manager for skill '%s': %w", skill.Name, err)
-	}
-
-	// Create source from skill
-	source := &port.Source{
-		Type: skill.Source,
-		URL:  skill.URL,
-	}
-
-	// Get latest version (Requirement 7.4, 12.1)
-	fmt.Printf("Fetching latest version for skill '%s'...\n", skill.Name)
-	latestVersion, err := pm.GetLatestVersion(ctx, source)
-	if err != nil {
-		// Network error handling (Requirement 12.2, 12.3)
-		if IsNetworkError(err) {
-			return nil, fmt.Errorf("failed to get latest version for skill '%s': %w. Check your network connection and source URL", skill.Name, err)
-		}
-		return nil, fmt.Errorf("failed to get latest version for skill '%s': %w", skill.Name, err)
-	}
-
-	// Download latest version (Requirement 7.4)
-	fmt.Printf("Downloading skill '%s' version %s...\n", skill.Name, latestVersion)
-	downloadResult, err := pm.Download(ctx, source, latestVersion)
-	if err != nil {
-		// Network error handling (Requirement 12.2, 12.3)
-		if IsNetworkError(err) {
-			return nil, fmt.Errorf("failed to download skill '%s': %w. Check your network connection and source URL", skill.Name, err)
-		}
-		return nil, fmt.Errorf("failed to download skill '%s': %w", skill.Name, err)
-	}
-
-	// Determine the source path to use for installation and hash calculation
-	sourcePath := downloadResult.Path
-	if skill.SubDir != "" {
-		// Use the subdirectory within the downloaded content
-		sourcePath = downloadResult.Path + "/" + skill.SubDir
-
-		// Verify that the subdirectory exists
-		if _, statErr := os.Stat(sourcePath); statErr != nil {
-			if os.IsNotExist(statErr) {
-				return nil, fmt.Errorf("subdirectory '%s' not found in downloaded skill '%s'. Available content is in: %s", skill.SubDir, skill.Name, downloadResult.Path)
-			}
-			return nil, fmt.Errorf("failed to access subdirectory '%s' in skill '%s': %w", skill.SubDir, skill.Name, statErr)
-		}
-		fmt.Printf("Using subdirectory '%s' from downloaded content...\n", skill.SubDir)
-	}
-
-	// Calculate hash only if not from go.mod (Requirement 5.3, 7.5)
-	// When version is resolved from go.mod, rely on go.sum for integrity verification
-	if !downloadResult.FromGoMod {
-		// Update version
-		skill.Version = downloadResult.Version
-
-		fmt.Printf("Calculating hash for skill '%s'...\n", skill.Name)
-		hashResult, err := s.hashService.CalculateHash(ctx, sourcePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to calculate hash for skill '%s': %w", skill.Name, err)
-		}
-		skill.HashValue = hashResult.Value
-	} else {
-		// Clear version and hash values when using go.mod version
-		// Version and hash verification will use go.mod/go.sum instead
-		// This ensures go.mod remains the source of truth
-		skill.Version = ""
-		skill.HashValue = ""
-	}
-
-	// Get install targets
-	installTargets := config.InstallTargets
-	if len(installTargets) > 0 {
-		// Install to all targets (Requirements 10.2, 10.5)
-		fmt.Printf("Installing updated skill '%s' to %d target(s)...\n", skill.Name, len(installTargets))
-		if err := s.copySkillToTargets(sourcePath, skill.Name, installTargets); err != nil {
-			// Filesystem error handling (Requirement 12.2, 12.3)
-			return nil, fmt.Errorf("failed to copy updated skill '%s' to install targets: %w. Check file permissions", skill.Name, err)
-		}
-	}
-
-	// Display update information (Requirement 7.6, 12.1)
-	fmt.Printf("Successfully updated skill '%s' from %s to %s\n", skill.Name, oldVersion, downloadResult.Version)
-
-	// Return update result (Requirement 7.6)
-	return &UpdateResult{
-		SkillName:  skill.Name,
-		OldVersion: oldVersion,
-		NewVersion: downloadResult.Version,
-	}, nil
-}
-
 // Uninstall removes the specified skill from all installation targets
 // and from the configuration file.
 // Requirements: 9.1, 9.2, 9.3, 9.4, 12.2
@@ -735,7 +673,7 @@ func (s *skillManagerImpl) Uninstall(ctx context.Context, skillName string) erro
 	skill := config.FindSkillByName(skillName)
 	if skill == nil {
 		// Requirement 9.3, 12.2
-		return fmt.Errorf("%w: skill '%s' not found in configuration", ErrSkillNotFound, skillName)
+		return &ErrorSkillsNotFound{SkillNames: []string{skillName}}
 	}
 
 	// Remove skill from all install target directories (Requirement 9.1)

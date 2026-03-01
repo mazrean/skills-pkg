@@ -1,34 +1,71 @@
 package domain
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
+
+type ErrorConfigNotFound struct {
+	Path string
+}
+
+func (e *ErrorConfigNotFound) Error() string {
+	return fmt.Sprintf("configuration file not found at %s.", e.Path)
+}
+
+type ErrorSkillsNotFound struct {
+	SkillNames []string
+}
+
+func (e *ErrorSkillsNotFound) Error() string {
+	quatedNames := make([]string, 0, len(e.SkillNames))
+	for _, name := range e.SkillNames {
+		quatedNames = append(quatedNames, fmt.Sprintf("'%s'", name))
+	}
+
+	return fmt.Sprintf("skills %s not found in configuration.", strings.Join(quatedNames, ", "))
+}
+
+type ErrorConfigExists struct {
+	Path string
+}
+
+func (e *ErrorConfigExists) Error() string {
+	return fmt.Sprintf("configuration file already exists at %s", e.Path)
+}
+
+type ErrorSkillExists struct {
+	SkillName string
+}
+
+func (e *ErrorSkillExists) Error() string {
+	return fmt.Sprintf("skill '%s' already exists in configuration", e.SkillName)
+}
+
+type ErrorInvalidSource struct {
+	SourceType string
+}
+
+func (e *ErrorInvalidSource) Error() string {
+	if e.SourceType == "" {
+		return "source type is empty. Supported types: git, go-mod"
+	}
+	return fmt.Sprintf("source type '%s' is not supported. Supported types: git, go-mod", e.SourceType)
+}
+
+type ErrorInvalidSkill struct {
+	FieldName string
+}
+
+func (e *ErrorInvalidSkill) Error() string {
+	return fmt.Sprintf("invalid skill configuration: field '%s' is required", e.FieldName)
+}
 
 // Sentinel errors for domain-level error identification.
-// These errors provide a standard way to identify and report error conditions
-// across the application, supporting requirements 12.2 and 12.3.
 var (
-	// ErrConfigNotFound indicates that the configuration file was not found.
-	ErrConfigNotFound = errors.New("configuration file not found")
-
-	// ErrConfigExists indicates that a configuration file already exists.
-	ErrConfigExists = errors.New("configuration file already exists")
-
-	// ErrSkillNotFound indicates that the requested skill was not found.
-	ErrSkillNotFound = errors.New("skill not found")
-
-	// ErrHashMismatch indicates that hash verification failed.
-	ErrHashMismatch = errors.New("hash mismatch detected")
-
-	// ErrInvalidSource indicates that an invalid source type was specified.
-	ErrInvalidSource = errors.New("invalid source type")
-
 	// ErrNetworkFailure indicates that a network request failed.
 	ErrNetworkFailure = errors.New("network request failed")
-
-	// ErrSkillExists indicates that a skill with the same name already exists.
-	ErrSkillExists = errors.New("skill already exists")
-
-	// ErrInvalidSkill indicates that a skill has invalid field values.
-	ErrInvalidSkill = errors.New("invalid skill configuration")
 )
 
 // IsNetworkError checks if an error is a network-related error.

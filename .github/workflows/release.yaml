@@ -27,7 +27,7 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           repositories: |
-            kessoku
+            skills-pkg
             homebrew-tap
 
       - name: Run GoReleaser
@@ -40,4 +40,3 @@ jobs:
         with:
           name: assets
           path: dist/
-  

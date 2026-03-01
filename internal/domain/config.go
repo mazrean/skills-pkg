@@ -28,10 +28,10 @@ type Skill struct {
 func (s *Skill) Validate() error {
 	// Check required fields
 	if s.Name == "" {
-		return ErrInvalidSkill
+		return &ErrorInvalidSkill{FieldName: "name"}
 	}
 	if s.URL == "" {
-		return ErrInvalidSkill
+		return &ErrorInvalidSkill{FieldName: "url"}
 	}
 
 	// Validate source type (requirement 11.4)
@@ -40,7 +40,7 @@ func (s *Skill) Validate() error {
 		"go-mod": true,
 	}
 	if !validSources[s.Source] {
-		return ErrInvalidSource
+		return &ErrorInvalidSource{SourceType: s.Source}
 	}
 
 	return nil
@@ -72,7 +72,7 @@ func (c *Config) Validate() error {
 	nameMap := make(map[string]bool)
 	for _, skill := range c.Skills {
 		if nameMap[skill.Name] {
-			return ErrSkillExists
+			return &ErrorSkillExists{SkillName: skill.Name}
 		}
 		nameMap[skill.Name] = true
 

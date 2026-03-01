@@ -31,10 +31,9 @@ type mockHashService struct{}
 
 func (m *mockHashService) CalculateHash(ctx context.Context, dirPath string) (*port.HashResult, error) {
 	return &port.HashResult{
-		Value:     "mockHash123",
+		Value: "mockHash123",
 	}, nil
 }
-
 
 // TestNewSkillManager tests the creation of a new SkillManager instance.
 func TestNewSkillManager(t *testing.T) {
@@ -122,9 +121,9 @@ func TestSelectPackageManager_UnsupportedSourceType(t *testing.T) {
 		t.Error("selectPackageManager should return nil for unsupported source type")
 	}
 
-	// Verify error is wrapped with ErrInvalidSource
-	if !errors.Is(err, ErrInvalidSource) {
-		t.Errorf("selectPackageManager should return ErrInvalidSource, got: %v", err)
+	// Verify error is ErrorInvalidSource
+	if _, ok := errors.AsType[*ErrorInvalidSource](err); !ok {
+		t.Errorf("selectPackageManager should return ErrorInvalidSource, got: %v", err)
 	}
 }
 
@@ -148,9 +147,9 @@ func TestSelectPackageManager_EmptySourceType(t *testing.T) {
 		t.Error("selectPackageManager should return nil for empty source type")
 	}
 
-	// Verify error is wrapped with ErrInvalidSource
-	if !errors.Is(err, ErrInvalidSource) {
-		t.Errorf("selectPackageManager should return ErrInvalidSource, got: %v", err)
+	// Verify error is ErrorInvalidSource
+	if _, ok := errors.AsType[*ErrorInvalidSource](err); !ok {
+		t.Errorf("selectPackageManager should return ErrorInvalidSource, got: %v", err)
 	}
 }
 
@@ -191,10 +190,9 @@ func (m *mockHashServiceWithCustom) CalculateHash(ctx context.Context, dirPath s
 		return m.hashResult, nil
 	}
 	return &port.HashResult{
-		Value:     "mockHash123",
+		Value: "mockHash123",
 	}, nil
 }
-
 
 type mockPackageManagerMultiSkill struct {
 	sourceType   string
@@ -269,7 +267,7 @@ func TestInstall_SingleSkill(t *testing.T) {
 	// Setup mock hash service
 	hashService := &mockHashServiceWithCustom{
 		hashResult: &port.HashResult{
-			Value:     "abcd1234",
+			Value: "abcd1234",
 		},
 	}
 
@@ -294,7 +292,6 @@ func TestInstall_SingleSkill(t *testing.T) {
 	if skill == nil {
 		t.Fatal("Skill not found in updated config")
 	}
-
 
 	if skill.HashValue != "abcd1234" {
 		t.Errorf("Expected hash value 'abcd1234', got '%s'", skill.HashValue)
@@ -368,7 +365,7 @@ func TestInstall_AllSkills(t *testing.T) {
 	// Setup mock hash service
 	hashService := &mockHashServiceWithCustom{
 		hashResult: &port.HashResult{
-			Value:     "hash123",
+			Value: "hash123",
 		},
 	}
 
@@ -449,30 +446,12 @@ func TestInstall_SkillNotFound(t *testing.T) {
 		t.Fatal("Expected error for non-existent skill, got nil")
 	}
 
-	// Verify error is ErrSkillNotFound
-	if !errors.Is(err, ErrSkillNotFound) {
-		t.Errorf("Expected ErrSkillNotFound, got: %v", err)
-	}
-
-	// Verify error message contains guidance (Requirement 12.2)
-	expectedSubstring := "Use 'skills-pkg add"
-	if !containsSubstring(err.Error(), expectedSubstring) {
-		t.Errorf("Error message should contain '%s', got: %s", expectedSubstring, err.Error())
+	// Verify error is ErrorSkillsNotFound
+	if _, ok := errors.AsType[*ErrorSkillsNotFound](err); !ok {
+		t.Errorf("Expected *ErrorSkillsNotFound, got: %v", err)
 	}
 }
 
-func containsSubstring(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
 
 // TestInstall_HashCalculation tests that hash is calculated and saved to config.
 // Requirements: 5.3, 12.1
@@ -555,7 +534,7 @@ func TestUpdate_SingleSkill(t *testing.T) {
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{mockPM})
 
 	// Update the skill
-	results, err := skillManager.Update(ctx, "test-skill", false)
+	results, err := skillManager.Update(ctx, []string{"test-skill"}, false)
 	if err != nil {
 		t.Fatalf("Update returned error: %v", err)
 	}
@@ -655,7 +634,7 @@ func TestUpdate_AllSkills(t *testing.T) {
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{npmPM, gitPM})
 
 	// Update all skills (empty skillName)
-	results, err := skillManager.Update(ctx, "", false)
+	results, err := skillManager.Update(ctx, nil, false)
 	if err != nil {
 		t.Fatalf("Update returned error: %v", err)
 	}
@@ -687,13 +666,13 @@ func TestUpdate_SkillNotFound(t *testing.T) {
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
 
 	// Try to update non-existent skill
-	_, err := skillManager.Update(ctx, "non-existent-skill", false)
+	_, err := skillManager.Update(ctx, []string{"non-existent-skill"}, false)
 	if err == nil {
 		t.Fatal("Expected error for non-existent skill, got nil")
 	}
 
-	if !errors.Is(err, ErrSkillNotFound) {
-		t.Errorf("Expected ErrSkillNotFound, got %v", err)
+	if _, ok := errors.AsType[*ErrorSkillsNotFound](err); !ok {
+		t.Errorf("Expected *ErrorSkillsNotFound, got %v", err)
 	}
 }
 
@@ -736,7 +715,7 @@ func TestUpdate_NetworkError(t *testing.T) {
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{mockPM})
 
 	// Try to update the skill
-	_, err := skillManager.Update(ctx, "test-skill", false)
+	_, err := skillManager.Update(ctx, []string{"test-skill"}, false)
 	if err == nil {
 		t.Fatal("Expected error for network failure, got nil")
 	}
@@ -777,7 +756,7 @@ func TestUpdate_DryRun_SingleSkill(t *testing.T) {
 	hashService := &mockHashService{}
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{pm})
 
-	results, err := skillManager.Update(ctx, "test-skill", true)
+	results, err := skillManager.Update(ctx, []string{"test-skill"}, true)
 	if err != nil {
 		t.Fatalf("Update (dry-run) returned error: %v", err)
 	}
@@ -838,7 +817,7 @@ func TestUpdate_DryRun_AllSkills(t *testing.T) {
 	hashService := &mockHashService{}
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{goModPM, gitPM})
 
-	results, err := skillManager.Update(ctx, "", true)
+	results, err := skillManager.Update(ctx, nil, true)
 	if err != nil {
 		t.Fatalf("Update (dry-run) returned error: %v", err)
 	}
@@ -895,7 +874,7 @@ func TestUpdate_DryRun_NetworkError(t *testing.T) {
 	hashService := &mockHashService{}
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{pm})
 
-	_, err := skillManager.Update(ctx, "test-skill", true)
+	_, err := skillManager.Update(ctx, []string{"test-skill"}, true)
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}
@@ -1049,12 +1028,12 @@ func TestUninstall_SkillNotFound(t *testing.T) {
 		t.Fatal("Expected error for non-existent skill, got nil")
 	}
 
-	// Verify error is ErrSkillNotFound
-	if !errors.Is(err, ErrSkillNotFound) {
-		t.Errorf("Expected ErrSkillNotFound, got: %v", err)
+	// Verify error is ErrorSkillsNotFound
+	if _, ok := errors.AsType[*ErrorSkillsNotFound](err); !ok {
+		t.Errorf("Expected *ErrorSkillsNotFound, got: %v", err)
 	}
 
-	// Verify error message contains guidance (Requirement 12.2)
+	// Verify error message is not empty (Requirement 12.2)
 	if err.Error() == "" {
 		t.Error("Error message should not be empty")
 	}

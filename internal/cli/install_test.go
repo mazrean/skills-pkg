@@ -13,11 +13,11 @@ func TestInstallCmd_Run(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		wantErrType error
-		setupFunc   func(t *testing.T) (configPath string, cleanup func())
-		name        string
-		skills      []string
-		wantErr     bool
+		wantErrCheck func(error) bool
+		setupFunc    func(t *testing.T) (configPath string, cleanup func())
+		name         string
+		skills       []string
+		wantErr      bool
 	}{
 		{
 			name:   "error: config file not found (install all)",
@@ -29,8 +29,11 @@ func TestInstallCmd_Run(t *testing.T) {
 				// Don't create config file
 				return configPath, func() {}
 			},
-			wantErr:     true,
-			wantErrType: domain.ErrConfigNotFound,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorConfigNotFound](err)
+				return ok
+			},
 		},
 		{
 			name:   "error: config file not found (install specific)",
@@ -42,8 +45,11 @@ func TestInstallCmd_Run(t *testing.T) {
 				// Don't create config file
 				return configPath, func() {}
 			},
-			wantErr:     true,
-			wantErrType: domain.ErrConfigNotFound,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorConfigNotFound](err)
+				return ok
+			},
 		},
 		{
 			name:   "error: skill not found in configuration",
@@ -62,8 +68,11 @@ func TestInstallCmd_Run(t *testing.T) {
 
 				return configPath, func() {}
 			},
-			wantErr:     true,
-			wantErrType: domain.ErrSkillNotFound,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorSkillsNotFound](err)
+				return ok
+			},
 		},
 	}
 
@@ -86,8 +95,8 @@ func TestInstallCmd_Run(t *testing.T) {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
-				if tt.wantErrType != nil && !errors.Is(err, tt.wantErrType) {
-					t.Errorf("expected error type %v, got %v", tt.wantErrType, err)
+				if tt.wantErrCheck != nil && !tt.wantErrCheck(err) {
+					t.Errorf("expected error check to pass, got %v", err)
 				}
 			} else if err != nil {
 				t.Errorf("unexpected error: %v", err)

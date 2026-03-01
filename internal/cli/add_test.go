@@ -64,16 +64,16 @@ func TestAddCmd_Run(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		wantErrType error
-		setupFunc   func(t *testing.T) (configPath string, cleanup func())
-		checkFunc   func(t *testing.T, configPath string)
-		name        string
-		skillName   string
-		source      string
-		url         string
-		version     string
-		subDir      string
-		wantErr     bool
+		wantErrCheck func(error) bool
+		setupFunc    func(t *testing.T) (configPath string, cleanup func())
+		checkFunc    func(t *testing.T, configPath string)
+		name         string
+		skillName    string
+		source       string
+		url          string
+		version      string
+		subDir       string
+		wantErr      bool
 	}{
 		{
 			name:      "success: add git skill",
@@ -155,8 +155,11 @@ func TestAddCmd_Run(t *testing.T) {
 				// Don't create config file
 				return configPath, func() {}
 			},
-			wantErr:     true,
-			wantErrType: domain.ErrConfigNotFound,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorConfigNotFound](err)
+				return ok
+			},
 		},
 		{
 			name:      "error: invalid source type",
@@ -165,8 +168,11 @@ func TestAddCmd_Run(t *testing.T) {
 			url:       "https://example.com",
 			version:   "v1.0.0",
 			setupFunc: setupTestConfig,
-			wantErr:     true,
-			wantErrType: domain.ErrInvalidSource,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorInvalidSource](err)
+				return ok
+			},
 		},
 		{
 			name:      "error: duplicate skill name",
@@ -199,8 +205,11 @@ func TestAddCmd_Run(t *testing.T) {
 
 				return configPath, func() {}
 			},
-			wantErr:     true,
-			wantErrType: domain.ErrSkillExists,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorSkillExists](err)
+				return ok
+			},
 		},
 		{
 			name:      "success: add skill with default subdirectory",
@@ -305,8 +314,8 @@ func TestAddCmd_Run(t *testing.T) {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
-				if tt.wantErrType != nil && !errors.Is(err, tt.wantErrType) {
-					t.Errorf("expected error type %v, got %v", tt.wantErrType, err)
+				if tt.wantErrCheck != nil && !tt.wantErrCheck(err) {
+					t.Errorf("expected error check to pass, got %v", err)
 				}
 			} else if err != nil {
 				t.Errorf("unexpected error: %v", err)
