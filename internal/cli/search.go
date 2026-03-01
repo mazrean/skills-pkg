@@ -32,8 +32,8 @@ type searchSkill struct {
 	Name        string `json:"name"`
 	SkillID     string `json:"skillId"`
 	Source      string `json:"source"`
-	Installs    int    `json:"installs"`
 	Description string `json:"-"`
+	Installs    int    `json:"installs"`
 }
 
 // searchResponse is the top-level envelope returned by the skills.sh search API.
