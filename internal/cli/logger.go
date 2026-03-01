@@ -17,7 +17,7 @@ type Logger struct {
 // NewLogger creates a new Logger instance
 func NewLogger(verbose bool) *Logger {
 	return &Logger{
-		out:     os.Stdout,
+		out:     os.Stderr,
 		errOut:  os.Stderr,
 		verbose: verbose,
 	}

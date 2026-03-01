@@ -34,7 +34,7 @@ func (m *ConfigManager) Initialize(ctx context.Context, installDirs []string) er
 	// Check if config file already exists (requirement 1.4)
 	if _, err := os.Stat(m.configPath); err == nil {
 		// File exists - return error with clear message
-		return fmt.Errorf("%w: configuration file already exists at %s. Remove the existing file or use a different path", ErrConfigExists, m.configPath)
+		return &ErrorConfigExists{Path: m.configPath}
 	} else if !os.IsNotExist(err) {
 		// Some other error occurred while checking file existence
 		return fmt.Errorf("failed to check configuration file existence: %w", err)
@@ -60,7 +60,7 @@ func (m *ConfigManager) Load(ctx context.Context) (*Config, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			// File not found - return sentinel error (requirement 12.2, 12.3)
-			return nil, fmt.Errorf("%w: configuration file not found at %s. Run 'skills-pkg init' to create one", ErrConfigNotFound, m.configPath)
+			return nil, &ErrorConfigNotFound{Path: m.configPath}
 		}
 		// Other file system error (requirement 12.2, 12.3)
 		return nil, fmt.Errorf("failed to read configuration file at %s: %w. Check file permissions", m.configPath, err)
@@ -125,7 +125,7 @@ func (m *ConfigManager) AddSkillToConfig(ctx context.Context, skill *Skill) (*Co
 
 	// Check for duplicate skill names (requirement 2.2)
 	if config.HasSkill(skill.Name) {
-		return nil, fmt.Errorf("%w: skill '%s' already exists in configuration", ErrSkillExists, skill.Name)
+		return nil, &ErrorSkillExists{SkillName: skill.Name}
 	}
 
 	// Add the skill to the config
@@ -170,7 +170,7 @@ func (m *ConfigManager) UpdateSkill(ctx context.Context, skill *Skill) error {
 	// Find the skill to update
 	existingSkill := config.FindSkillByName(skill.Name)
 	if existingSkill == nil {
-		return fmt.Errorf("%w: skill '%s' not found in configuration", ErrSkillNotFound, skill.Name)
+		return &ErrorSkillsNotFound{SkillNames: []string{skill.Name}}
 	}
 
 	// Update the skill fields
@@ -209,7 +209,7 @@ func (m *ConfigManager) RemoveSkill(ctx context.Context, skillName string) error
 
 	// Check if skill exists
 	if skillIndex == -1 {
-		return fmt.Errorf("%w: skill '%s' not found in configuration", ErrSkillNotFound, skillName)
+		return &ErrorSkillsNotFound{SkillNames: []string{skillName}}
 	}
 
 	// Remove the skill from the slice

@@ -61,7 +61,7 @@ func (v *HashVerifier) Verify(ctx context.Context, skillName string, installDir 
 	// Find the skill in configuration
 	skill := config.FindSkillByName(skillName)
 	if skill == nil {
-		return nil, fmt.Errorf("%w: skill '%s' not found in configuration", ErrSkillNotFound, skillName)
+		return nil, &ErrorSkillsNotFound{SkillNames: []string{skillName}}
 	}
 
 	// Calculate actual hash of the skill directory

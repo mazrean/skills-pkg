@@ -15,7 +15,7 @@ import (
 // Requirements: 1.1, 1.4, 1.5
 func TestConfigManager_Initialize(t *testing.T) {
 	tests := []struct {
-		wantErr        error
+		wantErrCheck   func(error) bool
 		validateConfig func(t *testing.T, configPath string)
 		name           string
 		installDirs    []string
@@ -25,7 +25,7 @@ func TestConfigManager_Initialize(t *testing.T) {
 			name:        "successfully creates new config file",
 			setupFile:   false,
 			installDirs: []string{"~/.claude/skills", "~/.codex/skills"},
-			wantErr:     nil,
+			wantErrCheck: nil,
 			validateConfig: func(t *testing.T, configPath string) {
 				// Check that the file was created
 				if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -68,7 +68,7 @@ func TestConfigManager_Initialize(t *testing.T) {
 			name:        "successfully creates config with empty install dirs",
 			setupFile:   false,
 			installDirs: []string{},
-			wantErr:     nil,
+			wantErrCheck: nil,
 			validateConfig: func(t *testing.T, configPath string) {
 				if _, err := os.Stat(configPath); os.IsNotExist(err) {
 					t.Errorf("config file was not created at %s", configPath)
@@ -102,7 +102,10 @@ func TestConfigManager_Initialize(t *testing.T) {
 			name:        "returns error when config file already exists",
 			setupFile:   true,
 			installDirs: []string{"~/.claude/skills"},
-			wantErr:     domain.ErrConfigExists,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorConfigExists](err)
+				return ok
+			},
 			validateConfig: func(t *testing.T, configPath string) {
 				// Config file should still exist (not overwritten)
 				if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -133,9 +136,9 @@ func TestConfigManager_Initialize(t *testing.T) {
 			err := manager.Initialize(ctx, tt.installDirs)
 
 			// Verify error
-			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Errorf("ConfigManager.Initialize() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErrCheck != nil {
+				if err == nil || !tt.wantErrCheck(err) {
+					t.Errorf("ConfigManager.Initialize() error = %v, did not match expected error type", err)
 				}
 			} else if err != nil {
 				t.Errorf("ConfigManager.Initialize() unexpected error = %v", err)
@@ -153,11 +156,11 @@ func TestConfigManager_Initialize(t *testing.T) {
 // Requirements: 2.1, 2.6, 12.2, 12.3
 func TestConfigManager_Load(t *testing.T) {
 	tests := []struct {
-		wantErr     error
 		validate    func(t *testing.T, config *domain.Config)
 		name        string
 		fileContent string
 		setupFile   bool
+		errCheck    func(t *testing.T, err error, configPath string)
 	}{
 		{
 			name:      "successfully loads valid config file",
@@ -179,7 +182,6 @@ version = "1.0.0"
 hash_value = "e5f6g7h8"
 package_manager = "go-mod"
 `,
-			wantErr: nil,
 			validate: func(t *testing.T, config *domain.Config) {
 				// Verify install targets
 				if len(config.InstallTargets) != 2 {
@@ -230,15 +232,22 @@ package_manager = "go-mod"
 		{
 			name:      "returns error when config file not found",
 			setupFile: false,
-			wantErr:   domain.ErrConfigNotFound,
-			validate:  nil,
+			errCheck: func(t *testing.T, err error, configPath string) {
+				if err, ok := errors.AsType[*domain.ErrorConfigNotFound](err); ok {
+					if err.Path != configPath {
+						t.Errorf("expected error path '%s', got '%s'", configPath, err.Path)
+					}
+				} else {
+					t.Errorf("expected error of type ErrorConfigNotFound, got %v", err)
+				}
+			},
+			validate: nil,
 		},
 		{
 			name:      "returns detailed error for invalid TOML format",
 			setupFile: true,
 			fileContent: `invalid toml content [[[
 this is not valid`,
-			wantErr: nil, // We'll check for a descriptive error message instead
 			validate: func(t *testing.T, config *domain.Config) {
 				// This test case should fail with a TOML parse error
 				t.Error("expected TOML parse error, but got no error")
@@ -250,7 +259,6 @@ this is not valid`,
 			fileContent: `install_targets = []
 skills = []
 `,
-			wantErr: nil,
 			validate: func(t *testing.T, config *domain.Config) {
 				if len(config.InstallTargets) != 0 {
 					t.Errorf("expected 0 install targets, got %d", len(config.InstallTargets))
@@ -297,10 +305,8 @@ skills = []
 			}
 
 			// Verify error
-			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Errorf("ConfigManager.Load() error = %v, wantErr %v", err, tt.wantErr)
-				}
+			if tt.errCheck != nil {
+				tt.errCheck(t, err, configPath)
 			} else if err != nil {
 				t.Errorf("ConfigManager.Load() unexpected error = %v", err)
 				return
@@ -435,10 +441,10 @@ func TestConfigManager_Save(t *testing.T) {
 // Requirements: 2.2, 2.3, 2.4, 5.2
 func TestConfigManager_AddSkill(t *testing.T) {
 	tests := []struct {
-		wantErr     error
-		setupConfig *domain.Config
-		skill       *domain.Skill
-		validate    func(t *testing.T, config *domain.Config)
+		wantErrCheck func(error) bool
+		setupConfig  *domain.Config
+		skill        *domain.Skill
+		validate     func(t *testing.T, config *domain.Config)
 		name        string
 	}{
 		{
@@ -454,7 +460,7 @@ func TestConfigManager_AddSkill(t *testing.T) {
 				Version:   "v1.0.0",
 				HashValue: "abc123",
 			},
-			wantErr: nil,
+			wantErrCheck: nil,
 			validate: func(t *testing.T, config *domain.Config) {
 				if len(config.Skills) != 1 {
 					t.Fatalf("expected 1 skill, got %d", len(config.Skills))
@@ -478,13 +484,13 @@ func TestConfigManager_AddSkill(t *testing.T) {
 				Skills:         []*domain.Skill{},
 			},
 			skill: &domain.Skill{
-				Name:           "npm-skill",
-				Source:         "go-mod",
-				URL:            "example-package",
-				Version:        "1.0.0",
-				HashValue:      "def456",
+				Name:      "npm-skill",
+				Source:    "go-mod",
+				URL:       "example-package",
+				Version:   "1.0.0",
+				HashValue: "def456",
 			},
-			wantErr: nil,
+			wantErrCheck: nil,
 			validate: func(t *testing.T, config *domain.Config) {
 				if len(config.Skills) != 1 {
 					t.Fatalf("expected 1 skill, got %d", len(config.Skills))
@@ -516,7 +522,10 @@ func TestConfigManager_AddSkill(t *testing.T) {
 				Version:   "v2.0.0",
 				HashValue: "abc123",
 			},
-			wantErr: domain.ErrSkillExists,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorSkillExists](err)
+				return ok
+			},
 			validate: func(t *testing.T, config *domain.Config) {
 				// Original skill should remain unchanged
 				if len(config.Skills) != 1 {
@@ -545,9 +554,9 @@ func TestConfigManager_AddSkill(t *testing.T) {
 			err := manager.AddSkill(ctx, tt.skill)
 
 			// Verify error
-			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Errorf("ConfigManager.AddSkill() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErrCheck != nil {
+				if err == nil || !tt.wantErrCheck(err) {
+					t.Errorf("ConfigManager.AddSkill() error = %v, did not match expected error type", err)
 				}
 			} else if err != nil {
 				t.Errorf("ConfigManager.AddSkill() unexpected error = %v", err)
@@ -572,11 +581,11 @@ func TestConfigManager_AddSkill(t *testing.T) {
 // Requirements: 2.2, 5.2
 func TestConfigManager_UpdateSkill(t *testing.T) {
 	tests := []struct {
-		wantErr     error
-		setupConfig *domain.Config
-		skill       *domain.Skill
-		validate    func(t *testing.T, config *domain.Config)
-		name        string
+		wantErrCheck func(error) bool
+		setupConfig  *domain.Config
+		skill        *domain.Skill
+		validate     func(t *testing.T, config *domain.Config)
+		name         string
 	}{
 		{
 			name: "successfully updates skill version and hash",
@@ -599,7 +608,6 @@ func TestConfigManager_UpdateSkill(t *testing.T) {
 				Version:   "v2.0.0",
 				HashValue: "new-hash",
 			},
-			wantErr: nil,
 			validate: func(t *testing.T, config *domain.Config) {
 				if len(config.Skills) != 1 {
 					t.Fatalf("expected 1 skill, got %d", len(config.Skills))
@@ -626,7 +634,10 @@ func TestConfigManager_UpdateSkill(t *testing.T) {
 				Version:   "v1.0.0",
 				HashValue: "abc123",
 			},
-			wantErr: domain.ErrSkillNotFound,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorSkillsNotFound](err)
+				return ok
+			},
 			validate: func(t *testing.T, config *domain.Config) {
 				if len(config.Skills) != 0 {
 					t.Errorf("expected 0 skills, got %d", len(config.Skills))
@@ -654,9 +665,9 @@ func TestConfigManager_UpdateSkill(t *testing.T) {
 			err := manager.UpdateSkill(ctx, tt.skill)
 
 			// Verify error
-			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Errorf("ConfigManager.UpdateSkill() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErrCheck != nil {
+				if !tt.wantErrCheck(err) {
+					t.Errorf("ConfigManager.UpdateSkill() error = %v, wantErrCheck failed", err)
 				}
 			} else if err != nil {
 				t.Errorf("ConfigManager.UpdateSkill() unexpected error = %v", err)
@@ -681,11 +692,11 @@ func TestConfigManager_UpdateSkill(t *testing.T) {
 // Requirements: 9.2
 func TestConfigManager_RemoveSkill(t *testing.T) {
 	tests := []struct {
-		wantErr     error
-		setupConfig *domain.Config
-		validate    func(t *testing.T, config *domain.Config)
-		name        string
-		skillName   string
+		wantErrCheck func(error) bool
+		setupConfig  *domain.Config
+		validate     func(t *testing.T, config *domain.Config)
+		name         string
+		skillName    string
 	}{
 		{
 			name: "successfully removes skill",
@@ -709,7 +720,6 @@ func TestConfigManager_RemoveSkill(t *testing.T) {
 				},
 			},
 			skillName: "skill-to-remove",
-			wantErr:   nil,
 			validate: func(t *testing.T, config *domain.Config) {
 				if len(config.Skills) != 1 {
 					t.Fatalf("expected 1 skill remaining, got %d", len(config.Skills))
@@ -734,7 +744,6 @@ func TestConfigManager_RemoveSkill(t *testing.T) {
 				},
 			},
 			skillName: "only-skill",
-			wantErr:   nil,
 			validate: func(t *testing.T, config *domain.Config) {
 				if len(config.Skills) != 0 {
 					t.Errorf("expected 0 skills, got %d", len(config.Skills))
@@ -756,7 +765,10 @@ func TestConfigManager_RemoveSkill(t *testing.T) {
 				},
 			},
 			skillName: "nonexistent-skill",
-			wantErr:   domain.ErrSkillNotFound,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorSkillsNotFound](err)
+				return ok
+			},
 			validate: func(t *testing.T, config *domain.Config) {
 				// Original skill should remain
 				if len(config.Skills) != 1 {
@@ -785,9 +797,9 @@ func TestConfigManager_RemoveSkill(t *testing.T) {
 			err := manager.RemoveSkill(ctx, tt.skillName)
 
 			// Verify error
-			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Errorf("ConfigManager.RemoveSkill() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErrCheck != nil {
+				if !tt.wantErrCheck(err) {
+					t.Errorf("ConfigManager.RemoveSkill() error = %v, wantErrCheck failed", err)
 				}
 			} else if err != nil {
 				t.Errorf("ConfigManager.RemoveSkill() unexpected error = %v", err)
@@ -925,11 +937,11 @@ func TestConfigManager_ListSkills(t *testing.T) {
 						HashValue: "abc123",
 					},
 					{
-						Name:           "skill-2",
-						Source:         "go-mod",
-						URL:            "npm-package",
-						Version:        "2.0.0",
-						HashValue:      "def456",
+						Name:      "skill-2",
+						Source:    "go-mod",
+						URL:       "npm-package",
+						Version:   "2.0.0",
+						HashValue: "def456",
 					},
 				},
 			},

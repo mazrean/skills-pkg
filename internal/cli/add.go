@@ -94,23 +94,23 @@ func (c *AddCmd) runWithDeps(configPath string, verbose bool, hashService port.H
 	config, err := configManager.AddSkillToConfig(context.Background(), skill)
 	if err != nil {
 		// Handle different error types with appropriate messages (requirements 12.2, 12.3)
-		if errors.Is(err, domain.ErrConfigNotFound) {
+		if err, ok := errors.AsType[*domain.ErrorConfigNotFound](err); ok {
 			// Configuration file not found
-			logger.Error("Configuration file not found at %s", configPath)
+			logger.Error("Configuration file not found at %s", err.Path)
 			logger.Error("Run 'skills-pkg init' to create a configuration file")
 			return err
 		}
 
-		if errors.Is(err, domain.ErrSkillExists) {
+		if e, ok := errors.AsType[*domain.ErrorSkillExists](err); ok {
 			// Duplicate skill name (requirement 6.3)
-			logger.Error("Skill '%s' already exists in configuration", c.Name)
+			logger.Error("Skill '%s' already exists in configuration", e.SkillName)
 			logger.Error("Use 'skills-pkg update' to update an existing skill or choose a different name")
 			return err
 		}
 
-		if errors.Is(err, domain.ErrInvalidSource) {
+		if e, ok := errors.AsType[*domain.ErrorInvalidSource](err); ok {
 			// Invalid source type
-			logger.Error("Invalid source type '%s'", c.Source)
+			logger.Error("Invalid source type '%s'", e.SourceType)
 			logger.Error("Supported source types: git, go-mod")
 			return err
 		}

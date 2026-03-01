@@ -23,11 +23,11 @@ func TestUpdateCmd_Run(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		wantErrType error
-		setupFunc   func(t *testing.T) (configPath string, cleanup func())
-		name        string
-		skills      []string
-		wantErr     bool
+		wantErrCheck func(error) bool
+		setupFunc    func(t *testing.T) (configPath string, cleanup func())
+		name         string
+		skills       []string
+		wantErr      bool
 	}{
 		{
 			name:   "error: config file not found (update all)",
@@ -39,8 +39,11 @@ func TestUpdateCmd_Run(t *testing.T) {
 				// Don't create config file
 				return configPath, func() {}
 			},
-			wantErr:     true,
-			wantErrType: domain.ErrConfigNotFound,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorConfigNotFound](err)
+				return ok
+			},
 		},
 		{
 			name:   "error: config file not found (update specific)",
@@ -52,8 +55,11 @@ func TestUpdateCmd_Run(t *testing.T) {
 				// Don't create config file
 				return configPath, func() {}
 			},
-			wantErr:     true,
-			wantErrType: domain.ErrConfigNotFound,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorConfigNotFound](err)
+				return ok
+			},
 		},
 		{
 			name:   "error: skill not found in configuration",
@@ -72,8 +78,11 @@ func TestUpdateCmd_Run(t *testing.T) {
 
 				return configPath, func() {}
 			},
-			wantErr:     true,
-			wantErrType: domain.ErrSkillNotFound,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorSkillsNotFound](err)
+				return ok
+			},
 		},
 	}
 
@@ -86,18 +95,20 @@ func TestUpdateCmd_Run(t *testing.T) {
 
 			cmd := &UpdateCmd{
 				Skills: tt.skills,
+				DryRun: false,
+				Output: "text",
 			}
 
 			// Execute command directly using the internal run method for testing
-			err := cmd.run(configPath, false, false, "text") // non-verbose, non-dry-run, text output
+			err := cmd.run(configPath, false) // non-verbose, non-dry-run, text output
 
 			// Check error
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
-				if tt.wantErrType != nil && !errors.Is(err, tt.wantErrType) {
-					t.Errorf("expected error type %v, got %v", tt.wantErrType, err)
+				if tt.wantErrCheck != nil && !tt.wantErrCheck(err) {
+					t.Errorf("expected error check to pass, got %v", err)
 				}
 			} else if err != nil {
 				t.Errorf("unexpected error: %v", err)
@@ -112,14 +123,18 @@ func TestUpdateCmd_DryRun_ConfigNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, ".skillspkg.toml")
 
-	cmd := &UpdateCmd{Skills: []string{}}
-	err := cmd.run(configPath, false, true, "text")
+	cmd := &UpdateCmd{
+		Skills: []string{},
+		DryRun: true,
+		Output: "text",
+	}
+	err := cmd.run(configPath, false)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !errors.Is(err, domain.ErrConfigNotFound) {
-		t.Errorf("expected ErrConfigNotFound, got %v", err)
+	if _, ok := errors.AsType[*domain.ErrorConfigNotFound](err); !ok {
+		t.Errorf("expected *ErrorConfigNotFound, got %v", err)
 	}
 }
 
@@ -134,14 +149,18 @@ func TestUpdateCmd_DryRun_SkillNotFound(t *testing.T) {
 		t.Fatalf("failed to initialize config: %v", err)
 	}
 
-	cmd := &UpdateCmd{Skills: []string{"no-such-skill"}}
-	err := cmd.run(configPath, false, true, "text")
+	cmd := &UpdateCmd{
+		Skills: []string{"no-such-skill"},
+		DryRun: true,
+		Output: "text",
+	}
+	err := cmd.run(configPath, false)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !errors.Is(err, domain.ErrSkillNotFound) {
-		t.Errorf("expected ErrSkillNotFound, got %v", err)
+	if _, ok := errors.AsType[*domain.ErrorSkillsNotFound](err); !ok {
+		t.Errorf("expected *ErrorSkillsNotFound, got %v", err)
 	}
 }
 

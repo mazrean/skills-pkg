@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/alecthomas/kong"
 	"github.com/mazrean/skills-pkg/internal/adapter/pkgmanager"
@@ -76,15 +78,20 @@ func (c *UninstallCmd) run(configPath string, verbose bool) error {
 // Requirements: 9.3, 12.2, 12.3
 func (c *UninstallCmd) handleUninstallError(logger *Logger, skillName string, configPath string, err error) {
 	// Configuration file not found (requirement 12.2, 12.3)
-	if errors.Is(err, domain.ErrConfigNotFound) {
-		logger.Error("Configuration file not found at %s", configPath)
+	if err, ok := errors.AsType[*domain.ErrorConfigNotFound](err); ok {
+		logger.Error("Configuration file not found at %s", err.Path)
 		logger.Error("Run 'skills-pkg init' to create a configuration file")
 		return
 	}
 
 	// Skill not found in configuration (requirement 9.3, 12.2, 12.3)
-	if errors.Is(err, domain.ErrSkillNotFound) {
-		logger.Error("Skill '%s' not found in configuration", skillName)
+	if err, ok := errors.AsType[*domain.ErrorSkillsNotFound](err); ok {
+		quatedNames := make([]string, 0, len(err.SkillNames))
+		for _, name := range err.SkillNames {
+			quatedNames = append(quatedNames, fmt.Sprintf("'%s'", name))
+		}
+
+		logger.Error("Skills '%s' not found in configuration", strings.Join(quatedNames, ", "))
 		logger.Error("Use 'skills-pkg list' to see available skills")
 		return
 	}

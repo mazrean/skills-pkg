@@ -66,9 +66,9 @@ func (c *InitCmd) run(configPath string, verbose bool) error {
 	// Initialize configuration file (requirement 1.1, 1.5)
 	if err := configManager.Initialize(context.Background(), installTargets); err != nil {
 		// Handle different error types with appropriate messages (requirements 12.2, 12.3)
-		if errors.Is(err, domain.ErrConfigExists) {
+		if e, ok := errors.AsType[*domain.ErrorConfigExists](err); ok {
 			// Configuration file already exists (requirement 1.4)
-			logger.Error("Configuration file already exists at %s", configPath)
+			logger.Error("Configuration file already exists at %s", e.Path)
 			logger.Error("Remove the existing file or use a different path")
 			return err
 		}

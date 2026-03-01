@@ -15,11 +15,11 @@ func TestListCmd_Run(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		wantErrType error
-		setupFunc   func(t *testing.T) (configPath string, cleanup func())
-		checkFunc   func(t *testing.T, output string)
-		name        string
-		wantErr     bool
+		wantErrCheck func(error) bool
+		setupFunc    func(t *testing.T) (configPath string, cleanup func())
+		checkFunc    func(t *testing.T, output string)
+		name         string
+		wantErr      bool
 	}{
 		{
 			name: "success: list skills with multiple entries",
@@ -153,8 +153,11 @@ func TestListCmd_Run(t *testing.T) {
 
 				return configPath, func() {}
 			},
-			wantErr:     true,
-			wantErrType: domain.ErrConfigNotFound,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorConfigNotFound](err)
+				return ok
+			},
 			checkFunc: func(t *testing.T, output string) {
 				t.Helper()
 
@@ -198,8 +201,8 @@ func TestListCmd_Run(t *testing.T) {
 			}
 
 			// Check error type if specified
-			if tt.wantErrType != nil && !errors.Is(err, tt.wantErrType) {
-				t.Errorf("run() error type = %v, want %v", err, tt.wantErrType)
+			if tt.wantErrCheck != nil && !tt.wantErrCheck(err) {
+				t.Errorf("run() error check failed, got %v", err)
 				return
 			}
 

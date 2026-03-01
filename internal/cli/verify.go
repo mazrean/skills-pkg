@@ -60,9 +60,9 @@ func (c *VerifyCmd) runWithLogger(configPath string, logger *Logger) error {
 	summary, err := hashVerifier.VerifyAll(context.Background())
 	if err != nil {
 		// Handle different error types with appropriate messages (requirements 12.2, 12.3)
-		if errors.Is(err, domain.ErrConfigNotFound) {
+		if err, ok := errors.AsType[*domain.ErrorConfigNotFound](err); ok {
 			// Configuration file not found
-			logger.Error("Configuration file not found at %s", configPath)
+			logger.Error("Configuration file not found at %s", err.Path)
 			logger.Error("Run 'skills-pkg init' to create a configuration file")
 			return err
 		}

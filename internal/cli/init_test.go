@@ -14,14 +14,14 @@ func TestInitCmd_Run(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		wantErrType error
-		setupFunc   func(t *testing.T) (configPath string, cleanup func())
-		checkFunc   func(t *testing.T, configPath string)
-		name        string
-		agent       []string
-		installDirs []string
-		global      bool
-		wantErr     bool
+		wantErrCheck func(error) bool
+		setupFunc    func(t *testing.T) (configPath string, cleanup func())
+		checkFunc    func(t *testing.T, configPath string)
+		name         string
+		agent        []string
+		installDirs  []string
+		global       bool
+		wantErr      bool
 	}{
 		{
 			name:        "success: initialize with default settings",
@@ -273,8 +273,11 @@ func TestInitCmd_Run(t *testing.T) {
 
 				return configPath, func() {}
 			},
-			wantErr:     true,
-			wantErrType: domain.ErrConfigExists,
+			wantErr: true,
+			wantErrCheck: func(err error) bool {
+				_, ok := errors.AsType[*domain.ErrorConfigExists](err)
+				return ok
+			},
 		},
 	}
 
@@ -299,8 +302,8 @@ func TestInitCmd_Run(t *testing.T) {
 				if err == nil {
 					t.Error("expected error, got nil")
 				}
-				if tt.wantErrType != nil && !errors.Is(err, tt.wantErrType) {
-					t.Errorf("expected error type %v, got %v", tt.wantErrType, err)
+				if tt.wantErrCheck != nil && !tt.wantErrCheck(err) {
+					t.Errorf("expected error check failed, got %v", err)
 				}
 			} else if err != nil {
 				t.Errorf("unexpected error: %v", err)
