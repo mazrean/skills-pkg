@@ -30,7 +30,7 @@ skills-pkg install
 skills-pkg verify
 ```
 
-After running `init`, a `.skillspkg.toml` file is created in the current directory. This file tracks all skills and their install targets.
+After running `init`, a `.skillspkg.toml` file is created in the current directory and **`managing-skills`** is automatically installed. This built-in skill helps AI agents discover and use other available skills. The file tracks all skills and their install targets.
 
 ## Supported Agents
 

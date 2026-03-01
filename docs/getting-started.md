@@ -35,12 +35,19 @@ Navigate to the root of your project and run:
 skills-pkg init
 ```
 
-This creates `.skillspkg.toml` with a default install target of `./.skills`:
+This creates `.skillspkg.toml` with a default install target of `./.skills` and automatically installs **`managing-skills`** — a built-in skill that helps AI agents discover and use other skills:
 
 ```toml
 install_targets = ['./.skills']
-skills = []
+
+[[skills]]
+name   = "managing-skills"
+source = "go-mod"
+url    = "github.com/mazrean/skills-pkg"
+subdir = "skills/managing-skills"
 ```
+
+`managing-skills` is installed via Go module. Its version is resolved from your project's `go.mod` if `github.com/mazrean/skills-pkg` is already listed as a dependency; otherwise the latest version is fetched automatically.
 
 ### Initialize for a specific agent
 

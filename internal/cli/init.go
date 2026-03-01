@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 
 	"github.com/alecthomas/kong"
 	"github.com/mazrean/skills-pkg/internal/adapter/agent"
+	"github.com/mazrean/skills-pkg/internal/adapter/pkgmanager"
+	"github.com/mazrean/skills-pkg/internal/adapter/service"
 	"github.com/mazrean/skills-pkg/internal/domain"
 	"github.com/mazrean/skills-pkg/internal/port"
 )
@@ -15,6 +18,12 @@ import (
 const (
 	// defaultConfigPath is the default path to the .skillspkg.toml configuration file
 	defaultConfigPath = ".skillspkg.toml"
+
+	// managing-skills installation constants
+	managingSkillsName   = "managing-skills"
+	managingSkillsSource = "go-mod"
+	managingSkillsURL    = "github.com/mazrean/skills-pkg"
+	managingSkillsSubDir = "skills/managing-skills"
 )
 
 // InitCmd represents the init command
@@ -44,6 +53,18 @@ func (c *InitCmd) Run(ctx *kong.Context) error {
 
 // run is the internal implementation that can be called from tests with custom parameters
 func (c *InitCmd) run(configPath string, verbose bool) error {
+	// Create default dependencies
+	hashService := service.NewDirhash()
+	packageManagers := []port.PackageManager{
+		pkgmanager.NewGit(),
+		pkgmanager.NewGoMod(),
+	}
+
+	return c.runWithDeps(configPath, verbose, hashService, packageManagers)
+}
+
+// runWithDeps is the internal implementation with injectable dependencies for testing
+func (c *InitCmd) runWithDeps(configPath string, verbose bool, hashService port.HashService, packageManagers []port.PackageManager) error {
 	// Create logger with verbose setting (requirement 12.4)
 	logger := NewLogger(verbose)
 
@@ -64,7 +85,7 @@ func (c *InitCmd) run(configPath string, verbose bool) error {
 	configManager := domain.NewConfigManager(configPath)
 
 	// Initialize configuration file (requirement 1.1, 1.5)
-	if err := configManager.Initialize(context.Background(), installTargets); err != nil {
+	if err = configManager.Initialize(context.Background(), installTargets); err != nil {
 		// Handle different error types with appropriate messages (requirements 12.2, 12.3)
 		if e, ok := errors.AsType[*domain.ErrorConfigExists](err); ok {
 			// Configuration file already exists (requirement 1.4)
@@ -79,6 +100,45 @@ func (c *InitCmd) run(configPath string, verbose bool) error {
 		return err
 	}
 
+	// Add managing-skills to configuration and install it.
+	// On any failure below, roll back by removing the config file we just created
+	// so that re-running `init` is possible without hitting ErrorConfigExists.
+	logger.Info("Installing managing-skills...")
+	managingSkill := &domain.Skill{
+		Name:   managingSkillsName,
+		Source: managingSkillsSource,
+		URL:    managingSkillsURL,
+		SubDir: managingSkillsSubDir,
+	}
+
+	config, err := configManager.AddSkillToConfig(context.Background(), managingSkill)
+	if err != nil {
+		rollback(logger, configPath)
+		logger.Error("Failed to add managing-skills to configuration: %v", err)
+		return err
+	}
+
+	skillManager := domain.NewSkillManager(configManager, hashService, packageManagers)
+	// Use saveConfig=false so the config is only persisted after a successful install.
+	if err := skillManager.InstallSingleSkill(context.Background(), config, managingSkill, false); err != nil {
+		rollback(logger, configPath)
+		logger.Error("Failed to install managing-skills: %v", err)
+		return fmt.Errorf("managing-skills installation failed: %w", err)
+	}
+
+	// Persist config with managing-skills only after successful installation.
+	// Save uses os.WriteFile which truncates before writing; a mid-write failure can corrupt
+	// the file. Rolling back the config ensures the user can re-run init cleanly.
+	// Note: installed managing-skills files in the target directories are left in place.
+	// They will be overwritten on the next successful init run (copySkillToTargets removes
+	// the existing skill directory before copying). Users who do not re-run init will have
+	// orphaned managing-skills files without a corresponding config entry.
+	if err := configManager.Save(context.Background(), config); err != nil {
+		rollback(logger, configPath)
+		logger.Error("Failed to save configuration: %v", err)
+		return fmt.Errorf("failed to save configuration: %w", err)
+	}
+
 	// Success message (requirement 12.1)
 	logger.Info("Successfully initialized .skillspkg.toml")
 	if len(installTargets) > 0 {
@@ -91,6 +151,15 @@ func (c *InitCmd) run(configPath string, verbose bool) error {
 	}
 
 	return nil
+}
+
+// rollback removes the config file created during init so the user can re-run init cleanly.
+// If removal itself fails, a warning is logged so the user can delete it manually.
+func rollback(logger *Logger, configPath string) {
+	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+		logger.Error("Rollback failed: could not remove %s: %v", configPath, err)
+		logger.Error("Please delete %s manually before running init again.", configPath)
+	}
 }
 
 // buildInstallTargets constructs the list of install target directories
