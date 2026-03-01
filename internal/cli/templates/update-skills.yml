@@ -85,10 +85,38 @@ jobs:
         run: |
           for skill in $(echo '${{ steps.detect.outputs.skills }}' | jq -r '.[]'); do
             branch="update-skill/${skill}"
+            existing_pr=$(gh pr list --head "${branch}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$existing_pr" ]; then
+              echo "PR already exists for ${skill}: #${existing_pr}, skipping"
+              continue
+            fi
+            added_files=$(jq -r --arg skill "${skill}" '
+              .updates[] | select(.skill_name == $skill) | .file_diffs[]? |
+              select(.status == "added") | "**Added:** `\(.path)`"
+            ' dry-run-output.json)
+            removed_files=$(jq -r --arg skill "${skill}" '
+              .updates[] | select(.skill_name == $skill) | .file_diffs[]? |
+              select(.status == "removed") | "**Removed:** `\(.path)`"
+            ' dry-run-output.json)
+            diff_output=$(jq -r --arg skill "${skill}" '
+              .updates[] | select(.skill_name == $skill) | .file_diffs[]? |
+              select(.patch != null and .patch != "") |
+              "diff --git a/\(.path) b/\(.path)\n--- a/\(.path)\n+++ b/\(.path)\n\(.patch)"
+            ' dry-run-output.json)
+            body_file=$(mktemp)
+            {
+              printf 'Automated skill update for %s.\n\n## Changes\n\n' "${skill}"
+              [ -n "${added_files}" ] && printf '%s\n' "${added_files}"
+              [ -n "${removed_files}" ] && printf '%s\n' "${removed_files}"
+              if [ -n "${added_files}" ] || [ -n "${removed_files}" ]; then
+                printf '\n'
+              fi
+              [ -n "${diff_output}" ] && printf '```diff\n%s\n```\n' "${diff_output}"
+            } > "${body_file}"
             gh pr create \
               --title "chore(skills): update ${skill}" \
-              --body "Automated skill update for ${skill}." \
+              --body-file "${body_file}" \
               --head "${branch}" \
-              --label "dependencies" \
-              || true
+              --label "dependencies"
+            rm -f "${body_file}"
           done
