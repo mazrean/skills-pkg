@@ -11,6 +11,68 @@ import (
 	"testing"
 )
 
+func TestParseSkillMDDescription(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+	}{
+		{
+			name:  "frontmatter: description extracted",
+			input: "---\nname: my-skill\ndescription: A helpful skill.\n---\n# Content\n",
+			want:  "A helpful skill.",
+		},
+		{
+			name:  "frontmatter: closing ... supported",
+			input: "---\ndescription: Dot-terminated.\n...\n# Body\n",
+			want:  "Dot-terminated.",
+		},
+		{
+			name:  "frontmatter: description not present",
+			input: "---\nname: my-skill\n---\n",
+			want:  "",
+		},
+		{
+			name:  "frontmatter: body description ignored",
+			input: "---\nname: my-skill\n---\ndescription: should be ignored\n",
+			want:  "",
+		},
+		{
+			name:  "no frontmatter: bare yaml description extracted",
+			input: "name: my-skill\ndescription: Bare YAML description.\n",
+			want:  "Bare YAML description.",
+		},
+		{
+			name:  "no frontmatter: description on first line",
+			input: "description: First line description.\n",
+			want:  "First line description.",
+		},
+		{
+			name:  "empty file",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "frontmatter: trailing CR stripped",
+			input: "---\r\ndescription: Windows line endings.\r\n---\r\n",
+			want:  "Windows line endings.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := parseSkillMDDescription(strings.NewReader(tt.input))
+			if got != tt.want {
+				t.Errorf("parseSkillMDDescription() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSearchCmd_runWithLoggerAndBaseURL(t *testing.T) {
 	t.Parallel()
 

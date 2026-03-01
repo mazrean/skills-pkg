@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -135,14 +136,43 @@ func (c *SearchCmd) tryFetchDescription(ctx context.Context, rawURL string) stri
 		return ""
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	return parseSkillMDDescription(resp.Body)
+}
+
+// parseSkillMDDescription parses an MDX/Markdown document and extracts the description
+// field from the YAML frontmatter block (delimited by ---). If no frontmatter is
+// present, it falls back to scanning all lines for a bare "description:" key.
+func parseSkillMDDescription(r io.Reader) string {
+	scanner := bufio.NewScanner(r)
+	if !scanner.Scan() {
+		return ""
+	}
+	firstLine := strings.TrimRight(scanner.Text(), "\r")
+
+	if firstLine == "---" {
+		// Frontmatter block: scan until closing --- or ...
+		for scanner.Scan() {
+			line := strings.TrimRight(scanner.Text(), "\r")
+			if line == "---" || line == "..." {
+				break
+			}
+			if after, ok := strings.CutPrefix(line, "description:"); ok {
+				return strings.TrimSpace(after)
+			}
+		}
+		return ""
+	}
+
+	// No frontmatter delimiter — treat the whole file as bare YAML metadata.
+	if after, ok := strings.CutPrefix(firstLine, "description:"); ok {
+		return strings.TrimSpace(after)
+	}
 	for scanner.Scan() {
 		line := scanner.Text()
 		if after, ok := strings.CutPrefix(line, "description:"); ok {
 			return strings.TrimSpace(after)
 		}
 	}
-
 	return ""
 }
 
