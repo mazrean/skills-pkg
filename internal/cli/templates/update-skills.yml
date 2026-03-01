@@ -111,12 +111,16 @@ jobs:
             body_file=$(mktemp)
             {
               printf 'Automated skill update for %s.\n\n## Changes\n\n' "${skill}"
-              [ -n "${added_files}" ] && printf '%s\n' "${added_files}"
-              [ -n "${removed_files}" ] && printf '%s\n' "${removed_files}"
-              if [ -n "${added_files}" ] || [ -n "${removed_files}" ]; then
-                printf '\n'
+              if [ -z "${added_files}" ] && [ -z "${removed_files}" ] && [ -z "${diff_output}" ]; then
+                printf 'No Skill Difference\n'
+              else
+                [ -n "${added_files}" ] && printf '%s\n' "${added_files}"
+                [ -n "${removed_files}" ] && printf '%s\n' "${removed_files}"
+                if [ -n "${added_files}" ] || [ -n "${removed_files}" ]; then
+                  printf '\n'
+                fi
+                [ -n "${diff_output}" ] && printf '```diff\n%s\n```\n' "${diff_output}"
               fi
-              [ -n "${diff_output}" ] && printf '```diff\n%s\n```\n' "${diff_output}"
             } > "${body_file}"
             gh pr create \
               --title "chore(skills): update ${skill}" \
