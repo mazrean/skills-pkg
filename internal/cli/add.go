@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 
 	"github.com/alecthomas/kong"
 	"github.com/mazrean/skills-pkg/internal/adapter/pkgmanager"
@@ -15,11 +19,12 @@ import (
 
 // AddCmd represents the add command
 type AddCmd struct {
-	Name    string `arg:"" help:"Skill name"`
-	Source  string `default:"git" enum:"git,go-mod" help:"Source type"`
-	URL     string `required:"" help:"Source URL (Git URL or Go module path)"`
-	Version string `default:"" help:"Version (tag, commit hash, or semantic version; defaults to version from go.mod for go-module, otherwise latest)"`
-	SubDir  string `help:"Subdirectory within the source to extract (default: skills/{name})"`
+	Name           string `arg:"" help:"Skill name"`
+	Source         string `default:"git" enum:"git,go-mod" help:"Source type"`
+	URL            string `required:"" help:"Source URL (Git URL or Go module path)"`
+	Version        string `default:"" help:"Version (tag, commit hash, or semantic version; defaults to version from go.mod for go-module, otherwise latest)"`
+	SubDir         string `help:"Subdirectory within the source to extract (default: skills/{name})"`
+	PrintSkillInfo bool   `name:"print-skill-info" help:"After installation, print skill metadata in agent-readable format"`
 }
 
 // Run executes the add command
@@ -136,5 +141,75 @@ func (c *AddCmd) runWithDeps(configPath string, verbose bool, hashService port.H
 	// Installation success message (requirement 12.1)
 	logger.Info("Successfully installed skill '%s'", c.Name)
 
+	// Print skill info for agent awareness if requested
+	if c.PrintSkillInfo && len(config.InstallTargets) > 0 {
+		skillMDPath := filepath.Join(config.InstallTargets[0], c.Name, "SKILL.md")
+		if err := printSkillAgentInfo(os.Stdout, c.Name, skillMDPath); err != nil {
+			logger.Verbose("Could not read SKILL.md for agent info: %v", err)
+		}
+	}
+
 	return nil
+}
+
+// skillAgentInfoHowToUse is the "How to use skills" guidelines from Codex's render_skills_section.
+const skillAgentInfoHowToUse = `- Discovery: The list above is the skills available in this session (name + description + file path). Skill bodies live on disk at the listed paths.
+- Trigger rules: If the user names a skill (with $SkillName or plain text) OR the task clearly matches a skill's description shown above, you must use that skill for that turn. Multiple mentions mean use them all. Do not carry skills across turns unless re-mentioned.
+- Missing/blocked: If a named skill isn't in the list or the path can't be read, say so briefly and continue with the best fallback.
+- How to use a skill (progressive disclosure):
+  1) After deciding to use a skill, open its ` + "`SKILL.md`" + `. Read only enough to follow the workflow.
+  2) When ` + "`SKILL.md`" + ` references relative paths (e.g., ` + "`scripts/foo.py`" + `), resolve them relative to the skill directory listed above first, and only consider other paths if needed.
+  3) If ` + "`SKILL.md`" + ` points to extra folders such as ` + "`references/`" + `, load only the specific files needed for the request; don't bulk-load everything.
+  4) If ` + "`scripts/`" + ` exist, prefer running or patching them instead of retyping large code blocks.
+  5) If ` + "`assets/`" + ` or templates exist, reuse them instead of recreating from scratch.
+- Coordination and sequencing:
+  - If multiple skills apply, choose the minimal set that covers the request and state the order you'll use them.
+  - Announce which skill(s) you're using and why (one short line). If you skip an obvious skill, say why.
+- Context hygiene:
+  - Keep context small: summarize long sections instead of pasting them; only load extra files when needed.
+  - Avoid deep reference-chasing: prefer opening only files directly linked from ` + "`SKILL.md`" + ` unless you're blocked.
+  - When variants exist (frameworks, providers, domains), pick only the relevant reference file(s) and note that choice.
+- Safety and fallback: If a skill can't be applied cleanly (missing files, unclear instructions), state the issue, pick the next-best approach, and continue.`
+
+// printSkillAgentInfo writes skill metadata in Codex-compatible agent-readable format.
+func printSkillAgentInfo(w io.Writer, skillName, skillMDPath string) error {
+	data, err := os.ReadFile(skillMDPath)
+	if err != nil {
+		return fmt.Errorf("read SKILL.md: %w", err)
+	}
+
+	name, description := parseSkillFrontmatter(string(data))
+	if name == "" {
+		name = skillName
+	}
+
+	fmt.Fprintf(w, "\n## Skills\n\n### Installed skill\n\n- %s: %s (file: %s)\n\n### How to use skills\n%s\n",
+		name, description, skillMDPath, skillAgentInfoHowToUse)
+	return nil
+}
+
+// parseSkillFrontmatter extracts name and description from SKILL.md YAML frontmatter.
+func parseSkillFrontmatter(content string) (name, description string) {
+	const delim = "---\n"
+	if !strings.HasPrefix(content, delim) {
+		return
+	}
+	rest := content[len(delim):]
+	front, _, ok := strings.Cut(rest, "\n---")
+	if !ok {
+		return
+	}
+	for line := range strings.SplitSeq(front, "\n") {
+		key, val, ok := strings.Cut(line, ": ")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "name":
+			name = val
+		case "description":
+			description = val
+		}
+	}
+	return
 }
