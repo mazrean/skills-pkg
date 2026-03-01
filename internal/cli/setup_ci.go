@@ -85,13 +85,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: stable
-
       - name: Install skills-pkg
-        run: go install github.com/mazrean/skills-pkg@latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64)  ARCH="x86_64" ;;
+            aarch64) ARCH="arm64" ;;
+            armv7l)  ARCH="armv7" ;;
+          esac
+          gh release download \
+            --repo mazrean/skills-pkg \
+            --pattern "skills-pkg_Linux_${ARCH}.tar.gz" \
+            --dir /tmp/skills-pkg-dl
+          tar -xzf "/tmp/skills-pkg-dl/skills-pkg_Linux_${ARCH}.tar.gz" \
+            -C /tmp/skills-pkg-dl
+          sudo install -m 755 /tmp/skills-pkg-dl/skills-pkg /usr/local/bin/skills-pkg
 
       - name: Detect updates (dry-run)
         id: detect
