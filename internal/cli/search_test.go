@@ -240,7 +240,7 @@ func TestSearchCmd_runWithLoggerAndBaseURL(t *testing.T) {
 				}
 
 				if content, ok := skillMdContent[r.URL.Path]; ok {
-					fmt.Fprint(w, content)
+					_, _ = fmt.Fprint(w, content)
 					return
 				}
 

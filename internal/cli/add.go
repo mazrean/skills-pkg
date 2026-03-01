@@ -183,9 +183,9 @@ func printSkillAgentInfo(w io.Writer, skillName, skillMDPath string) error {
 		name = skillName
 	}
 
-	fmt.Fprintf(w, "\n## Skills\n\n### Installed skill\n\n- %s: %s (file: %s)\n\n### How to use skills\n%s\n",
+	_, err = fmt.Fprintf(w, "\n## Skills\n\n### Installed skill\n\n- %s: %s (file: %s)\n\n### How to use skills\n%s\n",
 		name, description, skillMDPath, skillAgentInfoHowToUse)
-	return nil
+	return err
 }
 
 // parseSkillFrontmatter extracts name and description from SKILL.md YAML frontmatter.
