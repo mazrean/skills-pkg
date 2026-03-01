@@ -172,7 +172,7 @@ func (c *UpdateCmd) printDryRunJSON(logger *Logger, results []*domain.UpdateResu
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON output: %w", err)
 	}
-	_, err = fmt.Fprintln(logger.out, string(data))
+	_, err = fmt.Fprintln(logger.dataOut, string(data))
 	if err != nil {
 		return fmt.Errorf("failed to write JSON output: %w", err)
 	}

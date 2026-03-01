@@ -12,10 +12,12 @@ import (
 )
 
 // newTestLogger returns a Logger that writes to an in-memory buffer for inspection.
+// Both human-readable (out) and machine-readable data (dataOut) go to the same buffer.
 func newTestLogger() (*Logger, *bytes.Buffer) {
 	var buf bytes.Buffer
 	logger := NewLogger(false)
 	logger.out = &buf
+	logger.dataOut = &buf
 	return logger, &buf
 }
 

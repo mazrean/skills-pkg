@@ -9,7 +9,8 @@ import (
 
 // Logger provides logging functionality with verbose support
 type Logger struct {
-	out     io.Writer
+	out     io.Writer // human-readable log messages (stderr)
+	dataOut io.Writer // machine-readable data output such as JSON (stdout)
 	errOut  io.Writer
 	verbose bool
 }
@@ -18,6 +19,7 @@ type Logger struct {
 func NewLogger(verbose bool) *Logger {
 	return &Logger{
 		out:     os.Stderr,
+		dataOut: os.Stdout,
 		errOut:  os.Stderr,
 		verbose: verbose,
 	}
