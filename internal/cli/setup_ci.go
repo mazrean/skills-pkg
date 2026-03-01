@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
-
 	"github.com/alecthomas/kong"
 )
 
@@ -81,19 +79,19 @@ func (c *SetupCICmd) setupGitHubActions(logger *Logger, workflowPath string) err
 }
 
 // renovateCustomManager holds the Renovate custom manager configuration for skills-pkg.
-// It uses JSONata to parse .skillspkg.toml and extracts git-source skills,
-// mapping GitHub repository URLs and versions to the github-tags datasource.
+// It uses JSONata to parse .skillspkg.toml and extracts skills,
+// mapping them to the appropriate datasource.
 // Fields are ordered to minimise GC-scannable pointer bytes (strings before slices).
 type renovateCustomManager struct {
 	CustomType          string   `json:"customType"`
 	FileFormat          string   `json:"fileFormat"`
 	DatasourceTemplate  string   `json:"datasourceTemplate"`
-	VersioningTemplate  string   `json:"versioningTemplate"`
+	VersioningTemplate  string   `json:"versioningTemplate,omitempty"`
 	ManagerFilePatterns []string `json:"managerFilePatterns"`
 	MatchStrings        []string `json:"matchStrings"`
 }
 
-var skillspkgRenovateManager = renovateCustomManager{
+var skillspkgGitRenovateManager = renovateCustomManager{
 	CustomType: "jsonata",
 	FileFormat: "toml",
 	// managerFilePatterns uses plain regex strings (no /.../ delimiters).
@@ -106,6 +104,26 @@ var skillspkgRenovateManager = renovateCustomManager{
 	},
 	DatasourceTemplate: "github-tags",
 	VersioningTemplate: "semver-coerced",
+}
+
+var skillspkgGoModRenovateManager = renovateCustomManager{
+	CustomType: "jsonata",
+	FileFormat: "toml",
+	// managerFilePatterns uses plain regex strings (no /.../ delimiters).
+	ManagerFilePatterns: []string{`(^|/)\.skillspkg\.toml$`},
+	// Extract depName (Go module path) and currentValue (version) from go-mod-source skills.
+	// Only skills with an explicit version are matched; empty version means the version is
+	// resolved from the workspace go.mod and should not be managed by Renovate.
+	MatchStrings: []string{
+		`skills[source = "go-mod" and version != ""].{"depName": url, "currentValue": version}`,
+	},
+	DatasourceTemplate: "go",
+}
+
+// skillspkgRenovateManagers lists all custom manager configurations that setup-ci injects into renovate.json.
+var skillspkgRenovateManagers = []renovateCustomManager{
+	skillspkgGitRenovateManager,
+	skillspkgGoModRenovateManager,
 }
 
 func (c *SetupCICmd) setupRenovate(logger *Logger, renovatePath string) error {
@@ -136,31 +154,46 @@ func (c *SetupCICmd) setupRenovate(logger *Logger, renovatePath string) error {
 		}
 	}
 
-	// Skip if the skills-pkg manager is already registered (identified by managerFilePatterns).
+	// Build a set of matchStrings already present to detect which managers are missing.
+	// Each skills-pkg custom manager is identified by its first matchStrings entry.
+	existingMatchStrings := make(map[string]struct{}, len(existingManagers))
 	for _, m := range existingManagers {
 		var mgr map[string]json.RawMessage
 		if unmarshalErr := json.Unmarshal(m, &mgr); unmarshalErr != nil {
 			continue
 		}
-		patternsRaw, ok := mgr["managerFilePatterns"]
+		matchStringsRaw, ok := mgr["matchStrings"]
 		if !ok {
 			continue
 		}
-		var patterns []string
-		if unmarshalErr := json.Unmarshal(patternsRaw, &patterns); unmarshalErr != nil {
+		var matchStrings []string
+		if unmarshalErr := json.Unmarshal(matchStringsRaw, &matchStrings); unmarshalErr != nil {
 			continue
 		}
-		if slices.Contains(patterns, skillspkgRenovateManager.ManagerFilePatterns[0]) {
-			logger.Info("Renovate custom manager for skills-pkg already configured in %s", renovatePath)
-			return nil
+		for _, ms := range matchStrings {
+			existingMatchStrings[ms] = struct{}{}
 		}
 	}
 
-	managerJSON, err := json.Marshal(skillspkgRenovateManager)
-	if err != nil {
-		return fmt.Errorf("failed to marshal skills-pkg custom manager: %w", err)
+	added := 0
+	for _, manager := range skillspkgRenovateManagers {
+		if len(manager.MatchStrings) == 0 {
+			continue
+		}
+		if _, exists := existingMatchStrings[manager.MatchStrings[0]]; exists {
+			continue
+		}
+		managerJSON, marshalErr := json.Marshal(manager)
+		if marshalErr != nil {
+			return fmt.Errorf("failed to marshal skills-pkg custom manager: %w", marshalErr)
+		}
+		existingManagers = append(existingManagers, managerJSON)
+		added++
 	}
-	existingManagers = append(existingManagers, managerJSON)
+	if added == 0 {
+		logger.Info("Renovate custom managers for skills-pkg already configured in %s", renovatePath)
+		return nil
+	}
 
 	updatedManagers, err := json.Marshal(existingManagers)
 	if err != nil {
