@@ -17,6 +17,7 @@ var CLI struct {
 	Search    cli.SearchCmd    `cmd:"" help:"Search for available skills on skills.sh"`
 	Init      cli.InitCmd      `cmd:"" help:"Initialize project with .skillspkg.toml configuration file"`
 	Update    cli.UpdateCmd    `cmd:"" help:"Update skills to latest versions"`
+	SetupCI   cli.SetupCICmd   `cmd:"" name:"setup-ci" help:"Set up CI configuration for automated skill updates"`
 	Verbose   bool             `help:"Enable verbose logging" short:"v" env:"SKILLSPKG_VERBOSE" default:"false"`
 }
 

@@ -108,6 +108,7 @@ go build -o skills-pkg .
 | `uninstall <name>` | Remove a skill from configuration and all install targets |
 | `list` | List all configured skills |
 | `verify` | Verify the integrity of all installed skills |
+| `setup-ci` | Generate CI configuration for automated skill updates (GitHub Actions and/or Renovate) |
 
 Use `skills-pkg <command> --help` for detailed options.
 

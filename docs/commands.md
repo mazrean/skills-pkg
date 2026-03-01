@@ -170,11 +170,40 @@ skills-pkg update [names...] [flags]
 |---|---|
 | `[names...]` | Skill names to update. If omitted, all skills are updated |
 
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dry-run` | `false` | Show what would be updated without making any changes |
+| `--output <format>` | `text` | Output format: `text` (human-readable) or `json` (machine-readable, written to stdout) |
+
 ### Behavior
 
 - For each target skill, resolves the latest available version (latest Git tag, or latest module version)
 - Downloads and installs the new version
 - Updates `version` and `hash_value` in `.skillspkg.toml`
+- With `--dry-run`, no files or config are modified; results are printed only
+- With `--output json`, the result is written to **stdout** as a JSON object; progress messages go to stderr
+
+### JSON output schema
+
+```json
+{
+  "updates": [
+    {
+      "skill_name": "my-skill",
+      "current_version": "v1.0.0",
+      "latest_version": "v2.0.0",
+      "has_update": true,
+      "file_diffs": [
+        { "path": "SKILL.md", "status": "modified", "patch": "..." }
+      ]
+    }
+  ]
+}
+```
+
+`file_diffs[].status` is one of `added`, `removed`, or `modified`.
 
 ### Examples
 
@@ -184,6 +213,12 @@ skills-pkg update
 
 # Update a specific skill
 skills-pkg update my-skill
+
+# Check for updates without applying them (text output)
+skills-pkg update --dry-run
+
+# Check for updates and emit JSON (suitable for scripting or CI)
+skills-pkg update --dry-run --output json > updates.json
 ```
 
 ---
@@ -252,6 +287,87 @@ skills-pkg verify [flags]
 
 ```sh
 skills-pkg verify
+```
+
+---
+
+## `setup-ci`
+
+Generate CI configuration for automated skill updates.
+
+```
+skills-pkg setup-ci [flags]
+```
+
+At least one flag must be specified.
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `--github-actions` | Create `.github/workflows/update-skills.yml` — a GitHub Actions workflow that detects and applies skill updates via pull requests |
+| `--renovate` | Add a JSONata custom manager entry to `renovate.json` that tracks skill versions through the Renovate bot |
+
+### `--github-actions`
+
+Creates `.github/workflows/update-skills.yml` with the following workflow:
+
+1. **Detect updates** — runs `skills-pkg update --dry-run --output json` and identifies skills that have a newer version available
+2. **Update in parallel** — for each skill with an update, creates a dedicated Git branch using `git worktree` and runs `skills-pkg update <skill>` in it concurrently
+3. **Open PRs** — creates one pull request per updated skill via `gh pr create`
+
+The workflow is triggered on a weekly schedule (every Monday at 00:00 UTC) and can also be triggered manually via `workflow_dispatch`.
+
+Required repository permissions (set automatically in the generated workflow):
+
+| Permission | Reason |
+|---|---|
+| `contents: write` | Push update branches |
+| `pull-requests: write` | Open pull requests |
+
+### `--renovate`
+
+Adds an entry to `renovate.json` (creating the file with a minimal schema stub if it does not exist) under `customManagers`:
+
+```json
+{
+  "customType": "jsonata",
+  "fileFormat": "toml",
+  "managerFilePatterns": ["(^|/)\\.skillspkg\\.toml$"],
+  "matchStrings": [
+    "skills[source = \"git\" and $startsWith(url, \"https://github.com/\")].{\"depName\": $replace($substringAfter(url, \"https://github.com/\"), /\\.git$/, \"\"), \"currentValue\": version}"
+  ],
+  "datasourceTemplate": "github-tags",
+  "versioningTemplate": "semver-coerced"
+}
+```
+
+This instructs Renovate to:
+
+- Parse every `.skillspkg.toml` in the repository as TOML
+- Extract skills whose `source` is `git` and whose `url` starts with `https://github.com/`
+- Look up the latest GitHub tag for each extracted `owner/repo` pair
+- Open a PR when a newer tag is found
+
+Running `setup-ci --renovate` a second time is a no-op if the entry already exists (detected by `managerFilePatterns`).
+
+**Limitations**
+
+- `renovate.json` must be valid JSON; JSONC (comments, trailing commas) is not supported.
+- Only `https://github.com/` URLs are tracked. SSH remotes (`git@github.com:...`) are skipped.
+- Skills with no `version` field are ignored by Renovate.
+
+### Examples
+
+```sh
+# Generate the GitHub Actions workflow only
+skills-pkg setup-ci --github-actions
+
+# Add the Renovate custom manager only
+skills-pkg setup-ci --renovate
+
+# Generate both at once
+skills-pkg setup-ci --github-actions --renovate
 ```
 
 ---

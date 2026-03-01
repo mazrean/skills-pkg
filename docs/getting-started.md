@@ -151,6 +151,40 @@ This removes the skill entry from `.skillspkg.toml` and deletes the installed fi
 
 ---
 
+## 8. Automate updates with CI
+
+Once skills are checked into version control, you can automate update PRs so you never miss a new version.
+
+### GitHub Actions
+
+```sh
+skills-pkg setup-ci --github-actions
+```
+
+This creates `.github/workflows/update-skills.yml`. The workflow:
+
+1. Runs `skills-pkg update --dry-run --output json` to discover available updates
+2. Creates a separate Git branch per skill (using `git worktree` for parallelism)
+3. Applies the update on each branch and opens a pull request
+
+The workflow is scheduled weekly and can be triggered manually from the GitHub Actions UI.
+
+### Renovate
+
+```sh
+skills-pkg setup-ci --renovate
+```
+
+This adds a JSONata custom manager to `renovate.json` that tells Renovate to parse `.skillspkg.toml` and track the GitHub tag for each `source = "git"` skill. Renovate will open PRs automatically when new tags are published.
+
+### Both at once
+
+```sh
+skills-pkg setup-ci --github-actions --renovate
+```
+
+---
+
 ## Next steps
 
 - [Configuration Reference](configuration.md) — learn all options in `.skillspkg.toml`
