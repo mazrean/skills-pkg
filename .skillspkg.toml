@@ -1,4 +1,4 @@
-install_targets = ['.claude/skills']
+install_targets = ['.claude/skills', './.codex/skills']
 
 [[skills]]
 name = 'managing-skills'
