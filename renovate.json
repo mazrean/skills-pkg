@@ -16,6 +16,17 @@
       "matchStrings": [
         "skills[source = \"git\" and $startsWith(url, \"https://github.com/\")].{\"depName\": $replace($substringAfter(url, \"https://github.com/\"), /\\.git$/, \"\"), \"currentValue\": version}"
       ]
+    },
+    {
+      "customType": "jsonata",
+      "fileFormat": "toml",
+      "datasourceTemplate": "go",
+      "managerFilePatterns": [
+        "(^|/)\\.skillspkg\\.toml$"
+      ],
+      "matchStrings": [
+        "skills[source = \"go-mod\" and version != \"\"].{\"depName\": url, \"currentValue\": version}"
+      ]
     }
   ],
   "extends": [
