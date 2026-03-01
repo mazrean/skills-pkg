@@ -1,12 +1,17 @@
 package domain
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/mazrean/skills-pkg/internal/port"
+	"github.com/sergi/go-diff/diffmatchpatch"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -30,19 +35,37 @@ type SkillManager interface {
 	InstallSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) error
 
 	// Update updates the specified skill. If skillName is empty, updates all skills.
-	Update(ctx context.Context, skillName string) (*UpdateResult, error)
+	// When dryRun is true, only checks for available updates without applying changes.
+	Update(ctx context.Context, skillName string, dryRun bool) ([]*UpdateResult, error)
 
 	// Uninstall removes the specified skill.
 	Uninstall(ctx context.Context, skillName string) error
+}
+
+// FileDiffStatus represents the change status of a file.
+type FileDiffStatus string
+
+const (
+	FileDiffAdded    FileDiffStatus = "added"
+	FileDiffRemoved  FileDiffStatus = "removed"
+	FileDiffModified FileDiffStatus = "modified"
+)
+
+// FileDiff represents the diff of a single file between versions.
+type FileDiff struct {
+	Path   string         // Relative path within the skill
+	Status FileDiffStatus // Change status
+	Patch  string         // Line-level diff content (empty for added/removed)
 }
 
 // UpdateResult represents the result of a skill update operation.
 // It contains information about the old and new versions.
 // Requirements: 7.6
 type UpdateResult struct {
-	SkillName  string // Name of the updated skill
-	OldVersion string // Previous version
-	NewVersion string // New version after update
+	SkillName  string       // Name of the updated skill
+	OldVersion string       // Previous version
+	NewVersion string       // New version after update
+	FileDiffs  []*FileDiff  // File-level diffs (populated in dry-run mode only)
 }
 
 // skillManagerImpl is the concrete implementation of SkillManager.
@@ -362,8 +385,9 @@ func (s *skillManagerImpl) InstallSingleSkill(ctx context.Context, config *Confi
 
 // Update updates the specified skill to the latest version.
 // If skillName is empty, it updates all skills from the configuration.
+// When dryRun is true, only checks for available updates without applying any changes.
 // Requirements: 5.3, 7.1, 7.2, 7.5, 7.6, 12.1, 12.2, 12.3
-func (s *skillManagerImpl) Update(ctx context.Context, skillName string) (*UpdateResult, error) {
+func (s *skillManagerImpl) Update(ctx context.Context, skillName string, dryRun bool) ([]*UpdateResult, error) {
 	// Load configuration (Requirement 7.1)
 	config, err := s.configManager.Load(ctx)
 	if err != nil {
@@ -385,41 +409,215 @@ func (s *skillManagerImpl) Update(ctx context.Context, skillName string) (*Updat
 		skillsToUpdate = []*Skill{skill}
 	}
 
-	// Update skills concurrently using errgroup
+	// Process skills concurrently using errgroup
 	results := make([]*UpdateResult, len(skillsToUpdate))
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	for i, skill := range skillsToUpdate {
 		eg.Go(func() error {
-			result, err := s.updateSingleSkill(egCtx, config, skill, false)
-			if err != nil {
-				return err
+			if dryRun {
+				result, err := s.checkSingleSkillUpdate(egCtx, config, skill)
+				if err != nil {
+					return err
+				}
+				results[i] = result
+			} else {
+				result, err := s.updateSingleSkill(egCtx, config, skill)
+				if err != nil {
+					return err
+				}
+				results[i] = result
 			}
-			results[i] = result
 			return nil
 		})
 	}
 
-	// Wait for all updates to complete
+	// Wait for all operations to complete
 	if err := eg.Wait(); err != nil {
 		return nil, err
 	}
 
-	// Save configuration once after all skills are updated
-	if err := s.configManager.Save(ctx, config); err != nil {
-		return nil, fmt.Errorf("failed to save configuration: %w", err)
+	// Save configuration only when not in dry-run mode
+	if !dryRun {
+		if err := s.configManager.Save(ctx, config); err != nil {
+			return nil, fmt.Errorf("failed to save configuration: %w", err)
+		}
 	}
 
-	// Return the last update result
-	// For single skill update, this is the result for that skill
-	// For all skills update, this is the result for the last skill
-	return results[len(results)-1], nil
+	return results, nil
+}
+
+// checkSingleSkillUpdate checks the latest available version for a single skill,
+// downloads it, and computes file-level diffs against the currently installed files.
+func (s *skillManagerImpl) checkSingleSkillUpdate(ctx context.Context, config *Config, skill *Skill) (*UpdateResult, error) {
+	pm, err := s.selectPackageManager(skill.Source)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select package manager for skill '%s': %w", skill.Name, err)
+	}
+
+	source := &port.Source{
+		Type: skill.Source,
+		URL:  skill.URL,
+	}
+
+	latestVersion, err := pm.GetLatestVersion(ctx, source)
+	if err != nil {
+		if IsNetworkError(err) {
+			return nil, fmt.Errorf("failed to get latest version for skill '%s': %w. Check your network connection and source URL", skill.Name, err)
+		}
+		return nil, fmt.Errorf("failed to get latest version for skill '%s': %w", skill.Name, err)
+	}
+
+	// Download the latest version to compute file diffs
+	downloadResult, err := pm.Download(ctx, source, latestVersion)
+	if err != nil {
+		if IsNetworkError(err) {
+			return nil, fmt.Errorf("failed to download skill '%s': %w. Check your network connection and source URL", skill.Name, err)
+		}
+		return nil, fmt.Errorf("failed to download skill '%s': %w", skill.Name, err)
+	}
+
+	newPath := downloadResult.Path
+	if skill.SubDir != "" {
+		newPath = filepath.Join(downloadResult.Path, skill.SubDir)
+		if _, statErr := os.Stat(newPath); statErr != nil {
+			if os.IsNotExist(statErr) {
+				return nil, fmt.Errorf("subdirectory '%s' not found in downloaded skill '%s'", skill.SubDir, skill.Name)
+			}
+			return nil, fmt.Errorf("failed to access subdirectory '%s' in skill '%s': %w", skill.SubDir, skill.Name, statErr)
+		}
+	}
+
+	// Resolve installed path from the first install target
+	oldPath := ""
+	if len(config.InstallTargets) > 0 {
+		candidate := filepath.Join(config.InstallTargets[0], skill.Name)
+		if _, statErr := os.Stat(candidate); statErr == nil {
+			oldPath = candidate
+		}
+	}
+
+	fileDiffs, err := computeFileDiffs(oldPath, newPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute file diffs for skill '%s': %w", skill.Name, err)
+	}
+
+	return &UpdateResult{
+		SkillName:  skill.Name,
+		OldVersion: skill.Version,
+		NewVersion: downloadResult.Version,
+		FileDiffs:  fileDiffs,
+	}, nil
+}
+
+// computeFileDiffs returns the file-level diff between oldDir and newDir.
+// If oldDir is empty or does not exist, all files in newDir are treated as added.
+func computeFileDiffs(oldDir, newDir string) ([]*FileDiff, error) {
+	oldFiles, err := collectFiles(oldDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read old files: %w", err)
+	}
+
+	newFiles, err := collectFiles(newDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read new files: %w", err)
+	}
+
+	var diffs []*FileDiff
+
+	// Removed and modified files
+	for path, oldContent := range oldFiles {
+		if newContent, exists := newFiles[path]; exists {
+			if oldContent != newContent {
+				patch := ""
+				if !isBinaryContent(oldContent) && !isBinaryContent(newContent) {
+					patch = lineDiff(oldContent, newContent)
+				}
+				diffs = append(diffs, &FileDiff{Path: path, Status: FileDiffModified, Patch: patch})
+			}
+		} else {
+			diffs = append(diffs, &FileDiff{Path: path, Status: FileDiffRemoved})
+		}
+	}
+
+	// Added files
+	for path := range newFiles {
+		if _, exists := oldFiles[path]; !exists {
+			diffs = append(diffs, &FileDiff{Path: path, Status: FileDiffAdded})
+		}
+	}
+
+	sort.Slice(diffs, func(i, j int) bool { return diffs[i].Path < diffs[j].Path })
+	return diffs, nil
+}
+
+// collectFiles walks dir and returns a map of relative path → file content.
+// Returns an empty map if dir is empty or does not exist.
+func collectFiles(dir string) (map[string]string, error) {
+	files := make(map[string]string)
+	if dir == "" {
+		return files, nil
+	}
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return files, nil
+	}
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		files[rel] = string(data)
+		return nil
+	})
+	return files, err
+}
+
+// isBinaryContent reports whether content contains null bytes (binary heuristic).
+func isBinaryContent(content string) bool {
+	return bytes.ContainsRune([]byte(content), 0)
+}
+
+// lineDiff returns a unified-diff-style patch for two text contents using line mode.
+func lineDiff(oldContent, newContent string) string {
+	dmp := diffmatchpatch.New()
+	chars1, chars2, lineArray := dmp.DiffLinesToChars(oldContent, newContent)
+	diffs := dmp.DiffMain(chars1, chars2, false)
+	dmp.DiffCharsToLines(diffs, lineArray)
+
+	var sb strings.Builder
+	for _, d := range diffs {
+		prefix := " "
+		switch d.Type {
+		case diffmatchpatch.DiffInsert:
+			prefix = "+"
+		case diffmatchpatch.DiffDelete:
+			prefix = "-"
+		}
+		for _, line := range strings.SplitAfter(d.Text, "\n") {
+			if line == "" {
+				continue
+			}
+			sb.WriteString(prefix + line)
+		}
+	}
+	return sb.String()
 }
 
 // updateSingleSkill updates a single skill to the latest version.
 // If saveConfig is true, saves the configuration after updating skill metadata.
 // Requirements: 5.3, 7.1, 7.2, 7.5, 7.6, 12.1, 12.2, 12.3
-func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config, skill *Skill, saveConfig bool) (*UpdateResult, error) {
+func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config, skill *Skill) (*UpdateResult, error) {
 	// Record old version (Requirement 7.6)
 	oldVersion := skill.Version
 
@@ -494,14 +692,6 @@ func (s *skillManagerImpl) updateSingleSkill(ctx context.Context, config *Config
 		// This ensures go.mod remains the source of truth
 		skill.Version = ""
 		skill.HashValue = ""
-	}
-
-	// Save updated configuration if requested (Requirement 5.3, 7.5)
-	if saveConfig {
-		if err := s.configManager.Save(ctx, config); err != nil {
-			// Filesystem error handling (Requirement 12.2, 12.3)
-			return nil, fmt.Errorf("failed to save configuration after update: %w. Check file permissions", err)
-		}
 	}
 
 	// Get install targets

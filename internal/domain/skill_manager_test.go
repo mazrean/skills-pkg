@@ -555,15 +555,16 @@ func TestUpdate_SingleSkill(t *testing.T) {
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{mockPM})
 
 	// Update the skill
-	result, err := skillManager.Update(ctx, "test-skill")
+	results, err := skillManager.Update(ctx, "test-skill", false)
 	if err != nil {
 		t.Fatalf("Update returned error: %v", err)
 	}
 
 	// Verify result
-	if result == nil {
-		t.Fatal("Update returned nil result")
+	if len(results) == 0 {
+		t.Fatal("Update returned no results")
 	}
+	result := results[0]
 	if result.SkillName != "test-skill" {
 		t.Errorf("Expected skill name 'test-skill', got '%s'", result.SkillName)
 	}
@@ -654,14 +655,15 @@ func TestUpdate_AllSkills(t *testing.T) {
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{npmPM, gitPM})
 
 	// Update all skills (empty skillName)
-	result, err := skillManager.Update(ctx, "")
+	results, err := skillManager.Update(ctx, "", false)
 	if err != nil {
 		t.Fatalf("Update returned error: %v", err)
 	}
 
-	// For now, just verify no error when updating all skills
-	// Full implementation will return results for all skills
-	_ = result
+	// Verify results for all skills
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
 }
 
 // TestUpdate_SkillNotFound tests error handling when skill is not found.
@@ -685,7 +687,7 @@ func TestUpdate_SkillNotFound(t *testing.T) {
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{})
 
 	// Try to update non-existent skill
-	_, err := skillManager.Update(ctx, "non-existent-skill")
+	_, err := skillManager.Update(ctx, "non-existent-skill", false)
 	if err == nil {
 		t.Fatal("Expected error for non-existent skill, got nil")
 	}
@@ -734,12 +736,169 @@ func TestUpdate_NetworkError(t *testing.T) {
 	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{mockPM})
 
 	// Try to update the skill
-	_, err := skillManager.Update(ctx, "test-skill")
+	_, err := skillManager.Update(ctx, "test-skill", false)
 	if err == nil {
 		t.Fatal("Expected error for network failure, got nil")
 	}
 
 	// Should be a network error
+	if !IsNetworkError(err) {
+		t.Errorf("Expected network error, got %v", err)
+	}
+}
+
+// TestUpdate_DryRun_SingleSkill tests dry-run check for a single skill.
+func TestUpdate_DryRun_SingleSkill(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	skill := &Skill{
+		Name:      "test-skill",
+		Source:    "git",
+		URL:       "https://github.com/example/skill.git",
+		Version:   "1.0.0",
+		HashValue: "hash123",
+	}
+	if err := configManager.AddSkill(ctx, skill); err != nil {
+		t.Fatalf("Failed to add skill: %v", err)
+	}
+
+	pm := &mockPackageManagerWithUpdate{
+		sourceType:    "git",
+		latestVersion: "2.0.0",
+		downloadPath:  tempDir + "/download",
+	}
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{pm})
+
+	results, err := skillManager.Update(ctx, "test-skill", true)
+	if err != nil {
+		t.Fatalf("Update (dry-run) returned error: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+
+	r := results[0]
+	if r.SkillName != "test-skill" {
+		t.Errorf("Expected skill name 'test-skill', got '%s'", r.SkillName)
+	}
+	if r.OldVersion != "1.0.0" {
+		t.Errorf("Expected old version '1.0.0', got '%s'", r.OldVersion)
+	}
+	if r.NewVersion != "2.0.0" {
+		t.Errorf("Expected new version '2.0.0', got '%s'", r.NewVersion)
+	}
+
+	// Verify config was NOT updated
+	config, err := configManager.Load(ctx)
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+	unchanged := config.FindSkillByName("test-skill")
+	if unchanged == nil {
+		t.Fatal("Skill not found after dry-run")
+	}
+	if unchanged.Version != "1.0.0" {
+		t.Errorf("Expected version to remain '1.0.0' after dry-run, got '%s'", unchanged.Version)
+	}
+}
+
+// TestUpdate_DryRun_AllSkills tests dry-run check for all skills.
+func TestUpdate_DryRun_AllSkills(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	// skill1 (go-mod): current=1.0.0, latest=2.0.0 → has update
+	// skill2 (git):    current=3.0.0, latest=3.0.0 → up to date
+	for _, s := range []*Skill{
+		{Name: "skill1", Source: "go-mod", URL: "example.com/skill1", Version: "1.0.0", HashValue: "h1"},
+		{Name: "skill2", Source: "git", URL: "https://example.com/2.git", Version: "3.0.0", HashValue: "h2"},
+	} {
+		if err := configManager.AddSkill(ctx, s); err != nil {
+			t.Fatalf("Failed to add skill: %v", err)
+		}
+	}
+
+	goModPM := &mockPackageManagerWithUpdate{sourceType: "go-mod", latestVersion: "2.0.0"}
+	gitPM := &mockPackageManagerWithUpdate{sourceType: "git", latestVersion: "3.0.0"}
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{goModPM, gitPM})
+
+	results, err := skillManager.Update(ctx, "", true)
+	if err != nil {
+		t.Fatalf("Update (dry-run) returned error: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+
+	byName := make(map[string]*UpdateResult)
+	for _, r := range results {
+		byName[r.SkillName] = r
+	}
+
+	r1 := byName["skill1"]
+	if r1 == nil {
+		t.Fatal("Result for skill1 not found")
+	}
+	if r1.OldVersion != "1.0.0" || r1.NewVersion != "2.0.0" {
+		t.Errorf("Unexpected result for skill1: old=%s new=%s", r1.OldVersion, r1.NewVersion)
+	}
+
+	r2 := byName["skill2"]
+	if r2 == nil {
+		t.Fatal("Result for skill2 not found")
+	}
+	if r2.OldVersion != "3.0.0" || r2.NewVersion != "3.0.0" {
+		t.Errorf("Unexpected result for skill2: old=%s new=%s", r2.OldVersion, r2.NewVersion)
+	}
+}
+
+// TestUpdate_DryRun_NetworkError tests that network errors during dry-run are propagated.
+func TestUpdate_DryRun_NetworkError(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := tempDir + "/.skillspkg.toml"
+
+	configManager := NewConfigManager(configPath)
+	ctx := context.Background()
+	if err := configManager.Initialize(ctx, []string{tempDir + "/skills"}); err != nil {
+		t.Fatalf("Failed to initialize config: %v", err)
+	}
+
+	skill := &Skill{
+		Name:      "test-skill",
+		Source:    "git",
+		URL:       "https://github.com/example/skill.git",
+		Version:   "1.0.0",
+		HashValue: "hash123",
+	}
+	if err := configManager.AddSkill(ctx, skill); err != nil {
+		t.Fatalf("Failed to add skill: %v", err)
+	}
+
+	pm := &mockPackageManagerWithError{sourceType: "git", err: ErrNetworkFailure}
+	hashService := &mockHashService{}
+	skillManager := NewSkillManager(configManager, hashService, []port.PackageManager{pm})
+
+	_, err := skillManager.Update(ctx, "test-skill", true)
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
 	if !IsNetworkError(err) {
 		t.Errorf("Expected network error, got %v", err)
 	}
