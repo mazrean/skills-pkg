@@ -34,6 +34,8 @@ skills-pkg init [flags]
 - If neither `--agent` nor `--install-dir` is given, defaults to `./.skills`
 - With `--agent` (no `--global`), adds `./.{agent}/skills` (e.g., `./.claude/skills`)
 - With `--agent --global`, resolves the agent's global path (e.g., `~/.claude/skills`)
+- Automatically installs **`managing-skills`** (the skill-discovery skill) via Go module (`github.com/mazrean/skills-pkg`, subdir `skills/managing-skills`). The version is resolved from your project's `go.mod` if the module is already required; otherwise the latest version is fetched from the module proxy — identical to `skills-pkg add --source go-mod`
+- **Atomic on failure**: if `managing-skills` installation fails for any reason, the config file is removed so you can re-run `init` cleanly
 
 ### Examples
 
