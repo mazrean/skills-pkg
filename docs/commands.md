@@ -81,6 +81,7 @@ skills-pkg add <name> --url <url> [flags]
 | `--source <type>` | `git` | Source type: `git` or `go-mod` |
 | `--version <ver>` | | Pinned version. For `git`: tag, branch, or commit SHA; defaults to the latest tag. For `go-mod`: semver or pseudo-version; defaults to the version found in the nearest `go.mod`, then falls back to the latest from the module proxy |
 | `--sub-dir <path>` | `skills/<name>` | Subdirectory within the source that contains the skill files |
+| `--print-skill-info` | `false` | After installation, print skill name, description, and file path in agent-readable format (Codex-compatible) |
 
 ### Behavior
 
@@ -96,6 +97,9 @@ If installation fails, the skill entry is **not** written to the config, leaving
 ```sh
 # Add from Git (latest tag)
 skills-pkg add my-skill --url https://github.com/example/skills-repo
+
+# Add and print skill metadata for agent awareness
+skills-pkg add my-skill --url https://github.com/example/skills-repo --print-skill-info
 
 # Add a specific version
 skills-pkg add my-skill --url https://github.com/example/skills-repo --version v2.0.0

@@ -1,12 +1,16 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
+	"sync"
 
 	"github.com/alecthomas/kong"
 )
@@ -14,6 +18,7 @@ import (
 const (
 	searchAPIBase = "https://skills.sh"
 	searchLimit   = 10
+	rawGitHubBase = "https://raw.githubusercontent.com"
 )
 
 // SearchCmd searches for available skills on skills.sh.
@@ -24,10 +29,11 @@ type SearchCmd struct {
 
 // searchSkill represents a skill returned by the skills.sh search API.
 type searchSkill struct {
-	Name     string `json:"name"`
-	SkillID  string `json:"skillId"`
-	Source   string `json:"source"`
-	Installs int    `json:"installs"`
+	Name        string `json:"name"`
+	SkillID     string `json:"skillId"`
+	Source      string `json:"source"`
+	Description string `json:"-"`
+	Installs    int    `json:"installs"`
 }
 
 // searchResponse is the top-level envelope returned by the skills.sh search API.
@@ -47,10 +53,10 @@ func (c *SearchCmd) Run(ctx *kong.Context) error {
 }
 
 func (c *SearchCmd) runWithLogger(ctx context.Context, logger *Logger) error {
-	return c.runWithLoggerAndBaseURL(ctx, logger, searchAPIBase)
+	return c.runWithLoggerAndBaseURLs(ctx, logger, searchAPIBase, rawGitHubBase)
 }
 
-func (c *SearchCmd) runWithLoggerAndBaseURL(ctx context.Context, logger *Logger, apiBase string) error {
+func (c *SearchCmd) runWithLoggerAndBaseURLs(ctx context.Context, logger *Logger, apiBase, rawBase string) error {
 	limit := c.Limit
 	if limit <= 0 {
 		limit = searchLimit
@@ -70,18 +76,104 @@ func (c *SearchCmd) runWithLoggerAndBaseURL(ctx context.Context, logger *Logger,
 		return nil
 	}
 
+	// Fetch descriptions from SKILL.md concurrently
+	var wg sync.WaitGroup
+	for i := range skills {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			skills[i].Description = c.fetchDescription(ctx, rawBase, skills[i].Source, skills[i].SkillID)
+		}(i)
+	}
+	wg.Wait()
+
 	logger.Info("")
 	logger.Info("%-30s %-40s %-10s", "NAME", "SOURCE", "INSTALLS")
 	logger.Info("%s", "--------------------------------------------------------------------------------")
 
 	for _, s := range skills {
 		logger.Info("%-30s %-40s %-10d", s.Name, s.Source, s.Installs)
+		if s.Description != "" {
+			logger.Info("  %s", s.Description)
+		}
 	}
 
 	logger.Info("")
 	logger.Info("Total: %d result(s)", len(skills))
 
 	return nil
+}
+
+// fetchDescription retrieves the description field from a skill's SKILL.md.
+// It first tries skills/{skillID}/SKILL.md (multi-skill repos), then falls back
+// to SKILL.md at the repository root (single-skill repos).
+func (c *SearchCmd) fetchDescription(ctx context.Context, rawBase, source, skillID string) string {
+	primaryURL := fmt.Sprintf("%s/%s/main/skills/%s/SKILL.md", rawBase, source, skillID)
+	if desc := c.tryFetchDescription(ctx, primaryURL); desc != "" {
+		return desc
+	}
+
+	fallbackURL := fmt.Sprintf("%s/%s/main/SKILL.md", rawBase, source)
+	return c.tryFetchDescription(ctx, fallbackURL)
+}
+
+// tryFetchDescription fetches a SKILL.md from rawURL and extracts the description field value.
+func (c *SearchCmd) tryFetchDescription(ctx context.Context, rawURL string) string {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return ""
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	return parseSkillMDDescription(resp.Body)
+}
+
+// parseSkillMDDescription parses an MDX/Markdown document and extracts the description
+// field from the YAML frontmatter block (delimited by ---). If no frontmatter is
+// present, it falls back to scanning all lines for a bare "description:" key.
+func parseSkillMDDescription(r io.Reader) string {
+	scanner := bufio.NewScanner(r)
+	if !scanner.Scan() {
+		return ""
+	}
+	firstLine := strings.TrimRight(scanner.Text(), "\r")
+
+	if firstLine == "---" {
+		// Frontmatter block: scan until closing --- or ...
+		for scanner.Scan() {
+			line := strings.TrimRight(scanner.Text(), "\r")
+			if line == "---" || line == "..." {
+				break
+			}
+			if after, ok := strings.CutPrefix(line, "description:"); ok {
+				return strings.TrimSpace(after)
+			}
+		}
+		return ""
+	}
+
+	// No frontmatter delimiter — treat the whole file as bare YAML metadata.
+	if after, ok := strings.CutPrefix(firstLine, "description:"); ok {
+		return strings.TrimSpace(after)
+	}
+	for scanner.Scan() {
+		line := scanner.Text()
+		if after, ok := strings.CutPrefix(line, "description:"); ok {
+			return strings.TrimSpace(after)
+		}
+	}
+	return ""
 }
 
 func (c *SearchCmd) fetchSkills(ctx context.Context, query string, limit int, apiBase string) ([]searchSkill, error) {
