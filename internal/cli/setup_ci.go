@@ -1,6 +1,7 @@
 package cli
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -62,104 +63,8 @@ const (
 	setupCIFilePerm = 0o644
 )
 
-// updateSkillsWorkflow is the GitHub Actions workflow template for auto-updating skills.
-// It runs a dry-run to detect available updates, then uses git worktrees to apply each
-// skill's update in parallel and creates a separate PR per skill.
-const updateSkillsWorkflow = `name: Update Skills
-
-on:
-  schedule:
-    - cron: '0 0 * * 1'
-  workflow_dispatch:
-
-permissions:
-  contents: write
-  pull-requests: write
-
-jobs:
-  update-skills:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install skills-pkg
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          ARCH=$(uname -m)
-          case "$ARCH" in
-            x86_64)  ARCH="x86_64" ;;
-            aarch64) ARCH="arm64" ;;
-            armv7l)  ARCH="armv7" ;;
-          esac
-          gh release download \
-            --repo mazrean/skills-pkg \
-            --pattern "skills-pkg_Linux_${ARCH}.tar.gz" \
-            --dir /tmp/skills-pkg-dl
-          tar -xzf "/tmp/skills-pkg-dl/skills-pkg_Linux_${ARCH}.tar.gz" \
-            -C /tmp/skills-pkg-dl
-          sudo install -m 755 /tmp/skills-pkg-dl/skills-pkg /usr/local/bin/skills-pkg
-
-      - name: Detect updates (dry-run)
-        id: detect
-        run: |
-          skills-pkg update --dry-run --output json > dry-run-output.json
-          UPDATE_SKILLS=$(jq -c '[.updates[] | select(.has_update == true) | .skill_name]' dry-run-output.json)
-          echo "skills=$UPDATE_SKILLS" >> "$GITHUB_OUTPUT"
-
-      - name: Update skills with worktrees
-        if: steps.detect.outputs.skills != '[]'
-        run: |
-          set -euo pipefail
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-
-          pids=()
-          for skill in $(echo '${{ steps.detect.outputs.skills }}' | jq -r '.[]'); do
-            branch="update-skill/${skill}"
-            git worktree add "worktrees/${skill}" -B "${branch}"
-            (
-              set -euo pipefail
-              cd "worktrees/${skill}"
-              skills-pkg update "${skill}"
-              git add -A
-              if git diff --cached --quiet; then
-                echo "No changes for ${skill}, skipping commit"
-                exit 0
-              fi
-              git commit -m "chore(skills): update ${skill}"
-              git push --force-with-lease origin "${branch}"
-            ) &
-            pids+=($!)
-          done
-
-          failed=0
-          for pid in "${pids[@]}"; do
-            wait "$pid" || failed=1
-          done
-          if [ "${failed}" -ne 0 ]; then
-            echo "One or more skill updates failed" >&2
-            exit 1
-          fi
-
-      - name: Create PRs
-        if: steps.detect.outputs.skills != '[]'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          for skill in $(echo '${{ steps.detect.outputs.skills }}' | jq -r '.[]'); do
-            branch="update-skill/${skill}"
-            gh pr create \
-              --title "chore(skills): update ${skill}" \
-              --body "Automated skill update for ${skill}." \
-              --head "${branch}" \
-              --label "dependencies" \
-              || true
-          done
-`
+//go:embed templates/update-skills.yml
+var updateSkillsWorkflow []byte
 
 func (c *SetupCICmd) setupGitHubActions(logger *Logger, workflowPath string) error {
 	workflowDir := filepath.Dir(workflowPath)
@@ -167,7 +72,7 @@ func (c *SetupCICmd) setupGitHubActions(logger *Logger, workflowPath string) err
 		return fmt.Errorf("failed to create workflow directory: %w", err)
 	}
 
-	if err := os.WriteFile(workflowPath, []byte(updateSkillsWorkflow), setupCIFilePerm); err != nil {
+	if err := os.WriteFile(workflowPath, updateSkillsWorkflow, setupCIFilePerm); err != nil {
 		return fmt.Errorf("failed to write workflow file: %w", err)
 	}
 
