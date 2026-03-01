@@ -33,13 +33,16 @@
     "config:recommended",
     ":dependencyDashboard"
   ],
-  "golang": {
-    "minimumReleaseAge": "3 days"
-  },
   "labels": [
     "dependencies"
   ],
   "packageRules": [
+    {
+      "matchCategories": [
+        "golang"
+      ],
+      "minimumReleaseAge": "3 days"
+    },
     {
       "description": "Group all Go dependencies",
       "matchDatasources": [
