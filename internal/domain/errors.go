@@ -62,6 +62,14 @@ func (e *ErrorInvalidSkill) Error() string {
 	return fmt.Sprintf("invalid skill configuration: field '%s' is required", e.FieldName)
 }
 
+type ErrorInstallTargetExists struct {
+	Target string
+}
+
+func (e *ErrorInstallTargetExists) Error() string {
+	return fmt.Sprintf("install target '%s' already exists in configuration", e.Target)
+}
+
 // Sentinel errors for domain-level error identification.
 var (
 	// ErrNetworkFailure indicates that a network request failed.

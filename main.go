@@ -9,16 +9,17 @@ import (
 
 // CLI represents the command-line interface structure
 var CLI struct {
-	List      cli.ListCmd      `cmd:"" help:"List installed skills"`
-	Verify    cli.VerifyCmd    `cmd:"" help:"Verify skill integrity with hash"`
-	Add       cli.AddCmd       `cmd:"" help:"Add a skill to configuration and install it"`
-	Uninstall cli.UninstallCmd `cmd:"" help:"Remove a skill from configuration and install targets"`
-	Install   cli.InstallCmd   `cmd:"" help:"Install skills from configuration"`
-	Search    cli.SearchCmd    `cmd:"" help:"Search for available skills on skills.sh"`
-	Init      cli.InitCmd      `cmd:"" help:"Initialize project with .skillspkg.toml configuration file"`
-	Update    cli.UpdateCmd    `cmd:"" help:"Update skills to latest versions"`
-	SetupCI   cli.SetupCICmd   `cmd:"" name:"setup-ci" help:"Set up CI configuration for automated skill updates"`
-	Verbose   bool             `help:"Enable verbose logging" short:"v" env:"SKILLSPKG_VERBOSE" default:"false"`
+	List             cli.ListCmd             `cmd:"" help:"List installed skills"`
+	Verify           cli.VerifyCmd           `cmd:"" help:"Verify skill integrity with hash"`
+	Uninstall        cli.UninstallCmd        `cmd:"" help:"Remove a skill from configuration and install targets"`
+	Add              cli.AddCmd              `cmd:"" help:"Add a skill to configuration and install it"`
+	Install          cli.InstallCmd          `cmd:"" help:"Install skills from configuration"`
+	Search           cli.SearchCmd           `cmd:"" help:"Search for available skills on skills.sh"`
+	AddInstallTarget cli.AddInstallTargetCmd `cmd:"" name:"add-install-target" help:"Add an install target directory to configuration"`
+	Init             cli.InitCmd             `cmd:"" help:"Initialize project with .skillspkg.toml configuration file"`
+	Update           cli.UpdateCmd           `cmd:"" help:"Update skills to latest versions"`
+	SetupCI          cli.SetupCICmd          `cmd:"" name:"setup-ci" help:"Set up CI configuration for automated skill updates"`
+	Verbose          bool                    `help:"Enable verbose logging" short:"v" env:"SKILLSPKG_VERBOSE" default:"false"`
 }
 
 // Version information (will be injected by GoReleaser via ldflags)
