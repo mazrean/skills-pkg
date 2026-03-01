@@ -8,12 +8,12 @@ require (
 	github.com/charithe/durationcheck v0.0.11
 	github.com/go-critic/go-critic v0.14.3
 	github.com/gordonklaus/ineffassign v0.2.0
-	github.com/kisielk/errcheck v1.9.0
+	github.com/kisielk/errcheck v1.10.0
 	github.com/kyoh86/exportloopref v0.1.11
 	github.com/lufeee/execinquery v1.2.1
 	github.com/nishanths/exhaustive v0.12.0
 	github.com/sanposhiho/wastedassign/v2 v2.1.0
-	github.com/sonatard/noctx v0.4.0
+	github.com/sonatard/noctx v0.5.0
 	github.com/tdakkota/asciicheck v0.4.1
 	github.com/timakin/bodyclose v0.0.0-20260129054331-73d1f95b84b4
 	github.com/tommy-muehle/go-mnd/v2 v2.5.1
