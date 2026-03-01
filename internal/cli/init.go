@@ -85,7 +85,7 @@ func (c *InitCmd) runWithDeps(configPath string, verbose bool, hashService port.
 	configManager := domain.NewConfigManager(configPath)
 
 	// Initialize configuration file (requirement 1.1, 1.5)
-	if err := configManager.Initialize(context.Background(), installTargets); err != nil {
+	if err = configManager.Initialize(context.Background(), installTargets); err != nil {
 		// Handle different error types with appropriate messages (requirements 12.2, 12.3)
 		if e, ok := errors.AsType[*domain.ErrorConfigExists](err); ok {
 			// Configuration file already exists (requirement 1.4)

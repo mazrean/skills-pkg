@@ -14,10 +14,10 @@ import (
 
 // mockPackageManagerWithOptions extends mockPackageManager with error injection and FromGoMod support
 type mockPackageManagerWithOptions struct {
+	downloadErr error
 	sourceType  string
 	tmpDir      string
 	fromGoMod   bool
-	downloadErr error
 }
 
 func (m *mockPackageManagerWithOptions) SourceType() string { return m.sourceType }
@@ -41,15 +41,15 @@ func TestInitCmd_Run(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		wantErrCheck    func(error) bool
-		setupFunc       func(t *testing.T) (configPath string, cleanup func())
+		wantErrCheck     func(error) bool
+		setupFunc        func(t *testing.T) (configPath string, cleanup func())
 		setupInstallDirs func(t *testing.T) []string
-		checkFunc       func(t *testing.T, configPath string)
-		name            string
-		agent           []string
-		installDirs     []string
-		global          bool
-		wantErr         bool
+		checkFunc        func(t *testing.T, configPath string)
+		name             string
+		agent            []string
+		installDirs      []string
+		global           bool
+		wantErr          bool
 	}{
 		{
 			name:        "success: initialize with default settings",
