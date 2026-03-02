@@ -4,6 +4,6 @@ install_targets = ['.claude/skills', './.codex/skills']
 name = 'managing-skills'
 source = 'go-mod'
 url = 'github.com/mazrean/skills-pkg'
-version = 'v0.0.0-20260301102838-16328987ced4'
+version = 'v0.1.0'
 hash_value = 'h1:c1bfyy6VDHnmfKHrmkckkxBgN2tsIkXCcJhGmjQGczw='
 subdir = 'skills/managing-skills'
